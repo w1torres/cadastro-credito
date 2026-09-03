@@ -1,0 +1,21 @@
+{
+  "name": "cadastro-credito",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Sistema de Solicitação e Análise de Crédito Rural — monorepo (backend NestJS + frontend React/Vite).",
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "dev:backend": "npm run dev --workspace=backend",
+    "dev:frontend": "npm run dev --workspace=frontend",
+    "build:backend": "npm run build --workspace=backend",
+    "build:frontend": "npm run build --workspace=frontend",
+    "build": "npm run build --workspaces",
+    "lint": "npm run lint --workspaces",
+    "format": "npm run format --workspaces",
+    "prisma:generate": "npm run prisma:generate --workspace=backend",
+    "prisma:migrate": "npm run prisma:migrate --workspace=backend"
+  }
+}

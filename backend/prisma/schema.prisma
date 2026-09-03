@@ -1,0 +1,13 @@
+// Schema inicial do Prisma — Fase 1 (Fundação).
+// Nenhuma entidade de domínio é modelada aqui de propósito: modelagem de
+// clientes, propriedades, solicitações de crédito, workflow etc. é escopo
+// da Fase 2 (Backend Core), conforme especificacoes_sistema_credito_rural/10-IMPLEMENTACAO-FASES.md.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
