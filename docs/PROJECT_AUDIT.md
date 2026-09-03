@@ -161,10 +161,12 @@ Ver `docs/FUNCTIONAL-MAP.md` para o mapeamento completo protótipo → arquitetu
 
 ## 16. OPEN QUESTIONS (auditoria)
 
-- **OQ-A1**: O botão "REPROVAR" deveria devolver automaticamente a etapa para o papel anterior, ou apenas sinalizar reprovação sem definir destino? O protótipo não implementa nenhum dos dois de forma completa (não reverte `etapa`).
-- **OQ-A2**: Existe uma regra de negócio real de "mínimo 1 propriedade por solicitação" (inferida do fato de a fazenda #1 nunca ganhar botão de remover, linha 504, e ser criada automaticamente ao carregar, linha 765), ou é apenas um detalhe de implementação do protótipo sem intenção de negócio?
-- **OQ-A3**: Os 3 pareceres (Consultor/Gerente/Crédito) ficam todos editáveis simultaneamente no protótipo. No sistema real, cada parecer deveria ficar bloqueado para edição fora da etapa/papel correspondente (ex.: Consultor não deveria conseguir editar o parecer do Crédito)? Não evidenciado nas specs 00–03/10–11.
-- **OQ-A4**: A lista fixa de 9 tipos de documento é aplicável a toda solicitação, ou deveria variar conforme o tipo de cliente (ex.: "Contrato Social" só faz sentido para Pessoa Jurídica)? O protótipo sempre mostra os 9, sem condicional por tipo de pessoa.
-- **OQ-A5**: Quais tipos de arquivo (mime) e tamanho máximo por upload/total serão aceitos? O protótipo não define nenhum `accept`/limite.
-- **OQ-A6**: O campo "CPF/CNPJ" no bloco de sócio (não apenas "CPF") sugere que um sócio poderia ser pessoa jurídica — isso é intencional?
-- **OQ-A7**: Não existe no protótipo um campo explícito de "tipo de cliente" (PF/PJ); há apenas "Nome/Razão Social" e "CPF/CNPJ" combinados. O sistema alvo precisa dessa distinção explícita (ex.: para regras de documento por tipo — ver OQ-A4)?
+Rodada de validação com o responsável do projeto em 2026-09-03 (ver detalhamento e citações em `docs/REQUIREMENTS.md`, seção "Consolidado de OPEN QUESTIONS desta fase"):
+
+- **OQ-A1** — `EM ABERTO` (adiada deliberadamente, "validar posteriormente"): O botão "REPROVAR" deveria devolver automaticamente a etapa para o papel anterior, ou apenas sinalizar reprovação sem definir destino? O protótipo não implementa nenhum dos dois de forma completa (não reverte `etapa`). Enquanto não validada, assume-se devolução ao papel imediatamente anterior.
+- **OQ-A2** — `RESOLVIDA` (2026-09-03): Sim, existe uma regra de negócio real de "mínimo 1 propriedade por solicitação" — confirmado pelo responsável do projeto.
+- **OQ-A3** — `EM ABERTO` (adiada deliberadamente, "validar posteriormente"): os 3 pareceres (Consultor/Gerente/Crédito) devem ficar bloqueados para edição fora da etapa/papel correspondente?
+- **OQ-A4** — `RESOLVIDA` (2026-09-03): a lista fixa de 9 tipos de documento é obrigatória para toda solicitação, independentemente do tipo de cliente — não há variação por PF/PJ, consistente com a decisão de não haver campo explícito de tipo de cliente (OQ-A7).
+- **OQ-A5** — `PARCIALMENTE RESOLVIDA` (2026-09-03): tipos de arquivo aceitos definidos como PDF, JPEG e PNG. Tamanho máximo por upload/total continua em aberto.
+- **OQ-A6** — `RESOLVIDA` (2026-09-03): sim, é intencional — um sócio pode ser pessoa jurídica, seguindo a mesma lógica de distinção por formato de documento do cliente (ver OQ-A7).
+- **OQ-A7** — `RESOLVIDA` (2026-09-03): não é necessário um campo explícito de "tipo de cliente" (PF/PJ) — a distinção é feita por validação do formato do CPF/CNPJ (11 ou 14 dígitos), sem campo dedicado no schema.

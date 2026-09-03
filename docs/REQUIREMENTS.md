@@ -4,6 +4,8 @@ Refinamento dos requisitos funcionais RF01–RF11 propostos em `especificacoes_s
 
 Regra seguida: nenhuma regra de negócio foi inventada além do que está evidenciado no protótipo ou nas specs 00–03/10–11. Toda regra necessária mas não evidenciada está marcada como `OPEN QUESTION`.
 
+**Atualização (2026-09-03)**: uma rodada de validação com o responsável do projeto resolveu a maior parte das OPEN QUESTIONS originais — as respostas foram incorporadas como `DECISÃO` diretamente nas seções de cada RF abaixo. Três perguntas seguem deliberadamente em aberto ("validar posteriormente"); ver o "Consolidado de OPEN QUESTIONS desta fase" ao final deste documento para o status completo.
+
 ## RF01 — Cliente
 
 Cadastrar, consultar e editar cliente conforme permissões.
@@ -25,9 +27,9 @@ Campos identificados no protótipo (Seção 1 "DADOS DO CLIENTE", linhas 73–14
 - Tempo na atividade (select: "+10 anos", "05 a 10 anos", "03 a 05 anos", "Menos de 03 anos")
 - Possui referência comercial em outras revendedoras (sim/não + texto livre de referências/contatos)
 
-`OPEN QUESTION`: o protótipo não distingue explicitamente Pessoa Física de Pessoa Jurídica (apenas um campo combinado "Nome/Razão Social" + "CPF/CNPJ"). É necessário um campo de tipo de cliente explícito no sistema real? (relevante também para RF05, ver OQ abaixo).
+`DECISÃO` (validada com o responsável do projeto em 2026-09-03): não é necessário um campo explícito de tipo de cliente (PF/PJ) — a distinção é feita por validação do formato do documento (CPF = 11 dígitos → Pessoa Física; CNPJ = 14 dígitos → Pessoa Jurídica), sem campo dedicado no schema. Isso também resolve a OQ-A7 da auditoria. **Consequência para RF05**: como não há campo de tipo de cliente, a exigência dos 9 tipos de documento não pode ser condicionada a PF/PJ por esse campo — ver decisão de RF05 abaixo (documentos permanecem uniformes/obrigatórios para todos).
 
-`OPEN QUESTION`: quais permissões exatas de edição por papel (CONSULTOR/GERENTE/CRÉDITO) aplicam-se ao cadastro do cliente? O protótipo não implementa nenhum controle de acesso — qualquer campo é editável por qualquer pessoa a qualquer momento.
+`DECISÃO` (2026-09-03): não existe uma matriz fixa de permissão de edição por campo/papel. A edição de dados do cliente é liberada conforme o estado de devolução (workflow) apontar informação ou documento faltante — ou seja, quando a solicitação retorna (RF08) a um papel anterior por pendência, esse papel pode editar os itens sinalizados como pendentes. Este princípio geral também orienta RF07 (bloqueio de avanço mostrando pendências, decidido abaixo) e RF08 (motivo de devolução). Detalhamento fino (ex.: se a edição fica restrita apenas aos campos marcados como pendentes ou libera o registro inteiro) fica para a Fase 2/3, ao desenhar o `WorkflowService` e as permissões (guards) do NestJS.
 
 ## RF02 — Proprietários/Sócios
 
@@ -39,9 +41,9 @@ Comportamento identificado (bloco `sociosArea`/`sociosContainer`, linhas 130–1
 - Repetível 0..N vezes via botão "ADICIONAR SÓCIO"; cada item pode ser removido individualmente e a lista é renumerada (`renumerarSocios()`, linha 483).
 - Campos por sócio: Nome do Sócio, CPF/CNPJ, Telefone, E-mail, Endereço.
 
-`OPEN QUESTION`: o rótulo "CPF/CNPJ" no sócio sugere que um sócio pode ser pessoa jurídica — confirmar se isso é intencional.
+`DECISÃO` (2026-09-03): sim, é intencional — um sócio segue a mesma lógica de PF/PJ do cliente (CPF ou CNPJ, distinguido por formato, sem campo de tipo dedicado). Resolve a OQ-A6 da auditoria.
 
-`OPEN QUESTION`: não há limite máximo de sócios no protótipo — existe um limite de negócio?
+`DECISÃO` (2026-09-03): não há limite máximo de sócios por cliente.
 
 ## RF03 — Propriedades
 
@@ -53,7 +55,7 @@ Comportamento identificado (container `fazendasContainer`, linhas 258–267; tem
 - Repetível via botão "ADICIONAR FAZENDA"; cada fazenda além da primeira pode ser removida (`removerFazenda()`, linha 611) e a lista é renumerada (`renumerarFazendas()`, linha 616).
 - A primeira fazenda é criada automaticamente ao carregar a página (comentário "Primeira fazenda obrigatória", linha 765) e nunca recebe botão de remoção (condicional `numero > 1`, linha 504).
 
-`OPEN QUESTION` (mesma da auditoria, OQ-A2): a impossibilidade de remover a fazenda #1 é uma regra de negócio real ("toda solicitação precisa de ao menos 1 propriedade") ou apenas um detalhe de implementação do protótipo? Está sendo registrada aqui como requisito candidato ("mínimo 1 propriedade por solicitação"), não confirmado.
+`DECISÃO` (2026-09-03, resolve OQ-A2 da auditoria): confirmado como regra de negócio real — toda solicitação exige no mínimo 1 propriedade cadastrada. A validação (bloqueio de remoção da última propriedade / exigência de ao menos uma para submeter) deve ser aplicada no backend, não apenas na UI.
 
 ## RF04 — Produção
 
@@ -65,9 +67,9 @@ Estrutura identificada dentro de cada card de fazenda (linhas 564–604, `showCr
 - **2ª Safra** ("safrinha"): Milho Safrinha, Sorgo, Feijão 2ª Safra — cada um em hectares.
 - **Outras Culturas**: campo de texto livre (sem estrutura de hectare por cultura).
 
-`OPEN QUESTION`: "Outras Culturas" é só texto livre no protótipo — o sistema real deveria estruturar isso como lista de (cultura, hectares), ou o texto livre é suficiente/definitivo?
+`DECISÃO` (2026-09-03): "Outras Culturas" deve virar uma lista estruturada de (cultura, hectares) — a partir de uma lista pré-definida de culturas — mas com a opção de adicionar uma cultura customizada quando ela não constar na lista pré-definida.
 
-`OPEN QUESTION`: não há campo de identificação de safra/ano-safra (ex.: "Safra 2025/2026") no protótipo — a produção é implicitamente "da próxima safra" (rótulo da seção: "ÁREA DE PRODUÇÃO PARA A PRÓXIMA SAFRA", linha 566). O modelo de dados real precisa de um campo explícito de safra/ano?
+`DECISÃO` (2026-09-03): sim, o modelo precisa de um campo explícito de safra/ano-safra (ex.: "2025/2026"), para validar que os dados de produção lançados correspondem à safra vigente.
 
 ## RF05 — Documentos
 
@@ -89,11 +91,11 @@ Mais um campo livre "OUTROS DOCUMENTOS / ANEXOS" (múltiplos arquivos, sem tipo 
 
 Nenhum dos `<input type="file">` define `accept` (tipo/mime) ou limite de tamanho.
 
-`OPEN QUESTION`: quais tipos de arquivo (mime) e tamanho máximo (por arquivo e total) serão aceitos? Não evidenciado no protótipo nem nas specs 00–03/10–11 lidas nesta fase.
+`DECISÃO` (2026-09-03): tipos de arquivo aceitos: PDF, JPEG e PNG. Tamanho máximo (por arquivo e total) **ainda não definido** — permanece `OPEN QUESTION` a ser resolvida antes da Fase 5 (Documentos); propor um limite técnico razoável (ex.: 10MB/arquivo) como padrão de implementação sujeito a validação posterior.
 
-`OPEN QUESTION`: os 9 tipos são sempre exigidos, ou variam conforme o tipo de cliente (ex.: "Contrato Social" só se aplicaria a Pessoa Jurídica — ver RF01)? O protótipo sempre exibe os 9, sem condicional.
+`DECISÃO` (2026-09-03): sim, os 9 tipos de documento são sempre obrigatórios para todos os clientes — não variam por tipo de cliente (PF/PJ). Consistente com a decisão de RF01 de não haver campo explícito de tipo de cliente. Resolve a OQ-A4 da auditoria.
 
-`OPEN QUESTION`: o checkbox ao lado de cada tipo de documento marca "documento aplicável" ou "documento entregue"? O protótipo não deixa claro (não há texto de ajuda) — comportamento atual é apenas um checkbox solto sem vínculo funcional com o campo de upload ao lado.
+`DECISÃO` (2026-09-03): os checkboxes de "aplicável" podem ser removidos — os 9 tipos de documento passam a ser todos obrigatórios (sem distinção opcional/aplicável via checkbox).
 
 ## RF06 — Solicitação
 
@@ -112,7 +114,7 @@ Campos identificados (Seção 2 "SOLICITAÇÃO E ANÁLISE INICIAL", linhas 148�
 
 A solicitação está implicitamente vinculada a um único `Client` (não há seleção explícita de cliente na tela — o cliente é preenchido na mesma tela/seção 1). Estado inicial equivalente a `DRAFT` na spec 03.
 
-`OPEN QUESTION`: existe valor máximo de limite de crédito solicitável, ou faixas por perfil de cliente? Não evidenciado.
+`DECISÃO` (2026-09-03): não há valor máximo de limite de crédito solicitável, nem faixas por perfil de cliente.
 
 ## RF07 — Workflow
 
@@ -126,7 +128,7 @@ No protótipo, o "workflow" é inteiramente cosmético e client-side:
 
 Requisito refinado: as transições reais devem seguir a máquina de estados formal de 12 estados definida em `03-DOMINIO-E-WORKFLOW.md` (`DRAFT → SUBMITTED_TO_MANAGER → MANAGER_REVIEW → ... → COMPLETED`, com rotas de devolução), implementada em um `WorkflowService` no backend, validando estado atual e papel do usuário autenticado antes de qualquer transição — nenhuma dessas validações existe hoje no protótipo, é 100% a construir.
 
-`OPEN QUESTION`: o botão "ENCAMINHAR" deveria bloquear o avanço se campos obrigatórios da etapa não estiverem preenchidos? O protótipo não bloqueia (nem define quais campos seriam obrigatórios em cada etapa).
+`DECISÃO` (2026-09-03): sim, "ENCAMINHAR" deve bloquear o avanço quando houver campos/documentos obrigatórios pendentes, e a UI deve exibir claramente quais pendências impedem o avanço (lista de pendências, não apenas um erro genérico). A lista exata de campos obrigatórios por etapa segue a ser detalhada na Fase 2/4 a partir dos campos já obrigatórios definidos neste documento (ex.: mínimo 1 propriedade, os 9 documentos, etc.).
 
 ## RF08 — Devolução
 
@@ -141,7 +143,7 @@ Não pede motivo, não identifica responsável (além do papel da etapa atual), 
 
 Requisito refinado (conforme spec 02, seção "Devolução"): a devolução deve exigir modal/painel obrigatório com motivo, responsável, data e etapa destino, e esse motivo deve permanecer no histórico de forma imutável — nenhum desses elementos existe no protótipo hoje.
 
-`OPEN QUESTION` (= OQ-A1 da auditoria): a devolução deve necessariamente voltar ao papel imediatamente anterior (GERENTE→CONSULTOR, CRÉDITO→GERENTE), conforme o fluxo da spec 03, ou existe algum caso de devolução direta que pule uma etapa? A spec 03 não evidencia esse segundo caso, então o requisito assume apenas devolução ao papel imediatamente anterior.
+`OPEN QUESTION` (= OQ-A1 da auditoria; adiada deliberadamente em 2026-09-03 — "validar posteriormente"): a devolução deve necessariamente voltar ao papel imediatamente anterior (GERENTE→CONSULTOR, CRÉDITO→GERENTE), conforme o fluxo da spec 03, ou existe algum caso de devolução direta que pule uma etapa? Enquanto não for validada, a implementação de referência assume apenas devolução ao papel imediatamente anterior (única rota evidenciada na spec 03).
 
 ## RF09 — Histórico
 
@@ -180,18 +182,31 @@ Requisito refinado: 100% novo, sem base a preservar do protótipo, apoiado nas s
 
 ## Consolidado de OPEN QUESTIONS desta fase
 
-1. Distinção explícita PF/PJ para o cliente (RF01).
-2. Permissões exatas de edição do cliente por papel (RF01).
-3. Sócio pode ser pessoa jurídica? (RF02)
-4. Limite máximo de sócios? (RF02)
-5. "Mínimo 1 propriedade por solicitação" é regra de negócio real ou detalhe de protótipo? (RF03)
-6. "Outras Culturas" deve ser estruturado (cultura + hectares) ou texto livre é definitivo? (RF04)
-7. Falta campo explícito de safra/ano-safra na produção — necessário no modelo real? (RF04)
-8. Tipos de arquivo e tamanho máximo de upload de documentos? (RF05)
-9. Os 9 tipos de documento são sempre exigidos ou variam por tipo de cliente? (RF05)
-10. O checkbox de documento significa "aplicável" ou "entregue"? (RF05)
-11. Existe valor máximo de limite de crédito solicitável? (RF06)
-12. "ENCAMINHAR" deve bloquear avanço por campos obrigatórios não preenchidos, e quais seriam esses campos por etapa? (RF07)
-13. Devolução sempre volta ao papel imediatamente anterior, ou há casos de pular etapa? (RF08)
+Rodada de validação com o responsável do projeto em 2026-09-03 — status atualizado:
+
+### Resolvidas (viraram `DECISÃO`, ver seção do RF correspondente)
+
+1. ~~Distinção explícita PF/PJ para o cliente~~ (RF01) — não é necessária, validação por formato de CPF/CNPJ.
+2. ~~Permissões exatas de edição do cliente por papel~~ (RF01) — edição segue as pendências indicadas na devolução, não uma matriz fixa campo×papel.
+3. ~~Sócio pode ser pessoa jurídica?~~ (RF02) — sim, mesma lógica de CPF/CNPJ.
+4. ~~Limite máximo de sócios?~~ (RF02) — não há limite.
+5. ~~"Mínimo 1 propriedade por solicitação" é regra de negócio real?~~ (RF03) — sim, confirmado.
+6. ~~"Outras Culturas" estruturado ou texto livre?~~ (RF04) — lista estruturada + opção de cultura customizada.
+7. ~~Falta campo explícito de safra/ano-safra?~~ (RF04) — sim, necessário.
+9. ~~O checkbox de documento significa "aplicável" ou "entregue"?~~ (RF05) — removido; os 9 tipos passam a ser todos obrigatórios.
+10. ~~Os 9 tipos de documento são sempre exigidos ou variam por tipo de cliente?~~ (RF05) — sempre obrigatórios para todos, não variam.
+11. ~~Existe valor máximo de limite de crédito solicitável?~~ (RF06) — não há teto.
+12. ~~"ENCAMINHAR" deve bloquear avanço por pendências?~~ (RF07) — sim, e deve exibir a lista de pendências.
+
+### Parcialmente resolvidas
+
+8. Tipos de arquivo e tamanho máximo de upload (RF05) — mime types definidos (PDF/JPEG/PNG); **tamanho máximo continua em aberto**.
+
+### Ainda em aberto (adiadas deliberadamente pelo responsável em 2026-09-03, "validar posteriormente")
+
+13. Devolução sempre volta ao papel imediatamente anterior, ou há casos de pular etapa? (RF08).
+14. Os pareceres (Consultor/Gerente/Crédito) devem ficar bloqueados para edição fora da etapa/papel correspondente? (OQ-A3 da auditoria, ver `PROJECT_AUDIT.md`).
+
+Estas 2 pendências devem ser revisitadas antes de fechar o desenho definitivo do `WorkflowService` na Fase 2.
 
 Todas as demais regras aplicadas neste documento decorrem diretamente do que foi observado no HTML (citado com número de linha) ou do texto das specs 00, 02, 03 e 10–11.
