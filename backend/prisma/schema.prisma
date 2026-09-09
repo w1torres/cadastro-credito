@@ -1,7 +1,9 @@
-// Schema inicial do Prisma — Fase 1 (Fundação).
-// Nenhuma entidade de domínio é modelada aqui de propósito: modelagem de
-// clientes, propriedades, solicitações de crédito, workflow etc. é escopo
-// da Fase 2 (Backend Core), conforme especificacoes_sistema_credito_rural/10-IMPLEMENTACAO-FASES.md.
+// Fase 2 (Backend Core) — modelagem de dominio: usuarios, clientes,
+// propriedades e solicitacoes de credito (CRUD apenas).
+// Fase 3 (Workflow) — CreditRequestHistory e AuditLog ativam a maquina de
+// estados de CreditRequestStatus (ja existente desde a Fase 2).
+// Documentos/assinatura ficam para as Fases 5/6,
+// conforme especificacoes_sistema_credito_rural/10-IMPLEMENTACAO-FASES.md.
 
 generator client {
   provider = "prisma-client-js"
@@ -10,4 +12,211 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+}
+
+enum Role {
+  CONSULTOR
+  GERENTE
+  CREDITO
+  ADMIN
+}
+
+enum TimeInBusiness {
+  MORE_THAN_10_YEARS
+  FROM_5_TO_10_YEARS
+  FROM_3_TO_5_YEARS
+  LESS_THAN_3_YEARS
+}
+
+enum CreditRequestStatus {
+  DRAFT
+  SUBMITTED_TO_MANAGER
+  MANAGER_REVIEW
+  RETURNED_TO_CONSULTANT
+  SUBMITTED_TO_CREDIT
+  CREDIT_REVIEW
+  RETURNED_TO_MANAGER
+  APPROVED
+  REJECTED
+  SIGNATURE_PENDING
+  SIGNED
+  COMPLETED
+  CANCELLED
+}
+
+model User {
+  id           String   @id @default(uuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         Role     @default(CONSULTOR)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  clients                Client[]
+  creditRequests         CreditRequest[]
+  creditRequestHistories CreditRequestHistory[]
+  auditLogs              AuditLog[]
+
+  @@map("users")
+  @@index([role])
+}
+
+model Client {
+  id                       String         @id @default(uuid())
+  name                     String
+  document                 String         @unique
+  spouseName               String?
+  phone                    String
+  email                    String
+  address                  String
+  city                     String
+  state                    String
+  zipCode                  String
+  relevantInfo             String?        @db.Text
+  hasEasyRegistrationInfo  Boolean
+  timeInBusiness           TimeInBusiness
+  hasCommercialReference   Boolean
+  commercialReferenceNotes String?        @db.Text
+  consultantId             String
+  consultant               User           @relation(fields: [consultantId], references: [id], onDelete: Restrict)
+  createdAt                DateTime       @default(now())
+  updatedAt                DateTime       @updatedAt
+
+  partners       Partner[]
+  properties     Property[]
+  creditRequests CreditRequest[]
+
+  @@map("clients")
+  @@index([consultantId])
+  @@index([createdAt])
+}
+
+model Partner {
+  id        String   @id @default(uuid())
+  clientId  String
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  name      String
+  document  String
+  phone     String
+  email     String
+  address   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("partners")
+  @@index([clientId])
+  @@unique([clientId, document])
+}
+
+model Property {
+  id                    String   @id @default(uuid())
+  clientId              String
+  client                Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  name                  String
+  stateRegistration     String?
+  city                  String
+  state                 String
+  region                String
+  latitude              Decimal? @db.Decimal(9, 6)
+  longitude             Decimal? @db.Decimal(9, 6)
+  ownAreaHectares       Decimal  @db.Decimal(10, 2)
+  leasedAreaHectares    Decimal  @db.Decimal(10, 2)
+  irrigatedAreaHectares Decimal  @db.Decimal(10, 2)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  productions PropertyProduction[]
+
+  @@map("properties")
+  @@index([clientId])
+}
+
+model PropertyProduction {
+  id          String   @id @default(uuid())
+  propertyId  String
+  property    Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  harvestYear String
+  cropName    String
+  hectares    Decimal  @db.Decimal(10, 2)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("property_productions")
+  @@index([propertyId])
+  @@index([harvestYear])
+  @@unique([propertyId, harvestYear, cropName])
+}
+
+model CreditRequest {
+  id                    String              @id @default(uuid())
+  clientId              String
+  client                Client              @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  consultantId          String
+  consultant            User                @relation(fields: [consultantId], references: [id], onDelete: Restrict)
+  requestedCreditLimit  Decimal             @db.Decimal(14, 2)
+  status                CreditRequestStatus @default(DRAFT)
+
+  leasedAreaPlanting          Boolean  @default(false)
+  leasedAreaPlantingHectares  Decimal? @db.Decimal(10, 2)
+  firstHarvestAreaPlanting    Boolean  @default(false)
+  barterModality              Boolean  @default(false)
+  hasRenegotiatedDebts        Boolean  @default(false)
+  landAcquisition              Boolean  @default(false)
+  landAcquisitionHectares      Decimal? @db.Decimal(10, 2)
+  landAcquisitionYear          Int?
+  landAcquisitionLocation      String?
+  landAcquisitionInstallments  Int?
+  newMachineryAcquisition      Boolean  @default(false)
+  newMachineryDescription      String?  @db.Text
+  otherActivity                Boolean  @default(false)
+  otherActivityDescription     String?  @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  histories CreditRequestHistory[]
+
+  @@map("credit_requests")
+  @@index([status])
+  @@index([clientId])
+  @@index([consultantId])
+  @@index([createdAt])
+}
+
+/// Trilha imutável de transições de estado (Fase 3, regra 6: "histórico não
+/// deve ser apagado"). Nenhum método update/delete é exposto para este modelo.
+model CreditRequestHistory {
+  id              String               @id @default(uuid())
+  creditRequestId String
+  creditRequest   CreditRequest        @relation(fields: [creditRequestId], references: [id], onDelete: Cascade)
+  fromStatus      CreditRequestStatus?
+  toStatus        CreditRequestStatus
+  actorId         String
+  actor           User                 @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  reason          String?              @db.Text
+  createdAt       DateTime             @default(now())
+
+  @@map("credit_request_histories")
+  @@index([creditRequestId, createdAt])
+}
+
+/// Trilha de auditoria genérica (spec 06): usuário, ação, entidade, entidadeId,
+/// timestamp, metadata mínima. Escopo da Fase 3: apenas transições de
+/// workflow — ver ADRs em 11-DECISOES-ARQUITETURA.md.
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Restrict)
+  action    String
+  entity    String
+  entityId  String
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  @@map("audit_logs")
+  @@index([entity, entityId])
+  @@index([userId])
+  @@index([createdAt])
 }

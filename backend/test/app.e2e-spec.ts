@@ -16,11 +16,10 @@ describe('AppController (e2e)', () => {
     await app.init();
   });
 
-  it('/ (GET)', () => {
-    return request(app.getHttpServer())
-      .get('/')
-      .expect(200)
-      .expect('Hello World!');
+  // Desde a Fase 2, o JwtAuthGuard global bloqueia toda rota sem @Public();
+  // esta rota placeholder do boilerplate do Nest não é uma exceção.
+  it('/ (GET) requires authentication', () => {
+    return request(app.getHttpServer()).get('/').expect(401);
   });
 
   afterEach(async () => {
