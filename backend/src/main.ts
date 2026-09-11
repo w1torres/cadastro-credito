@@ -17,8 +17,11 @@ async function bootstrap() {
     }),
   );
   app.useGlobalFilters(new HttpExceptionFilter());
+  const corsOrigin = configService.get<string>('CORS_ORIGIN');
   app.enableCors({
-    origin: configService.get<string>('CORS_ORIGIN'),
+    // Aceita uma lista separada por vírgula (ex.: "http://localhost:5173,http://127.0.0.1:5173")
+    // porque alguns navegadores/redes tratam "localhost" e "127.0.0.1" como origens distintas.
+    origin: corsOrigin?.split(',').map((origin) => origin.trim()),
     credentials: true,
   });
 

@@ -1,0 +1,19 @@
+# Dev image: roda o backend com hot-reload (nest start --watch).
+# Build context é a raiz do monorepo (necessário para o npm workspaces).
+FROM node:24-alpine
+
+WORKDIR /app
+
+COPY package.json package-lock.json ./
+COPY backend/package.json backend/package.json
+COPY frontend/package.json frontend/package.json
+
+RUN npm ci
+
+COPY backend backend
+
+RUN npm run prisma:generate --workspace=backend
+
+EXPOSE 3000
+
+CMD ["npm", "run", "dev", "--workspace=backend"]

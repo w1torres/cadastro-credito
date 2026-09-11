@@ -32,15 +32,33 @@ Copie o arquivo de exemplo da raiz e ajuste se necessário:
 cp .env.example .env
 ```
 
-O backend também lê um `.env` local em `backend/.env` (usado pelo Prisma CLI, que resolve variáveis relativas ao diretório do workspace). Mantenha os valores de `DATABASE_URL` sincronizados entre `.env` (raiz) e `backend/.env`.
+O backend também lê um `.env` local em `backend/.env` (usado pelo Prisma CLI quando rodado diretamente no host, fora do Docker). Mantenha os valores de `DATABASE_URL` sincronizados entre `.env` (raiz) e `backend/.env`.
 
-### 2. Subir o PostgreSQL
+### 2. Subir tudo com Docker Compose (recomendado)
 
 ```bash
-docker compose up -d
+docker compose up -d --build
 ```
 
-Isso sobe um container `postgres:16-alpine` expondo a porta `5433` do host (configurável via `POSTGRES_PORT`; usamos 5433 por padrão em vez de 5432 porque é comum já haver um PostgreSQL nativo instalado na máquina do desenvolvedor ocupando a porta padrão), com um volume nomeado para persistência dos dados.
+Isso sobe três containers:
+
+- `postgres` — `postgres:16-alpine`, expondo a porta `5433` do host (configurável via `POSTGRES_PORT`; usamos 5433 por padrão porque é comum já haver um PostgreSQL nativo ocupando a porta 5432 na máquina do desenvolvedor), com volume nomeado para persistência dos dados.
+- `backend` — NestJS em modo watch (`nest start --watch`), porta `3000` do host. Dentro da rede do compose ele acessa o Postgres pelo hostname `postgres` (não `localhost`).
+- `frontend` — Vite dev server, porta `5173` do host.
+
+O código de `backend/` e `frontend/` é montado como bind mount, então alterações no editor refletem nos containers com hot-reload. `node_modules` de cada workspace fica em volumes nomeados próprios do container (não usa o `node_modules` instalado no host), evitando conflito entre binários compilados para Windows/macOS e o Linux do container.
+
+Na primeira subida (ou após alterar o `schema.prisma`), rode as migrations dentro do container do backend:
+
+```bash
+docker compose exec backend npm run prisma:migrate --workspace=backend
+```
+
+Para ver os logs:
+
+```bash
+docker compose logs -f backend frontend
+```
 
 Para derrubar:
 
@@ -48,43 +66,40 @@ Para derrubar:
 docker compose down
 ```
 
-### 3. Instalar dependências
+Acesse a aplicação em `http://localhost:5173`. Endpoint de health check do backend: `GET http://localhost:3000/health`.
 
-Na raiz do monorepo (instala `backend` e `frontend` de uma vez, via npm workspaces):
+### 3. Alternativa: rodar sem Docker (apenas o Postgres em container)
+
+Suba só o banco:
+
+```bash
+docker compose up -d postgres
+```
+
+Instale as dependências na raiz do monorepo (via npm workspaces):
 
 ```bash
 npm install
 ```
 
-### 4. Rodar as migrations do Prisma
-
-Com o PostgreSQL no ar (passo 2):
+Rode as migrations do Prisma (usa `backend/.env`, que aponta para `localhost:5433`):
 
 ```bash
 npm run prisma:migrate
 ```
 
-Isso executa `prisma migrate dev` no workspace `backend`. Para apenas gerar o Prisma Client sem criar migration:
+Para apenas gerar o Prisma Client sem criar migration:
 
 ```bash
 npm run prisma:generate
 ```
 
-### 5. Rodar em desenvolvimento
-
-Backend (NestJS, porta padrão `3000`):
+Suba backend e frontend localmente, em dois terminais:
 
 ```bash
 npm run dev:backend
-```
-
-Frontend (Vite, porta padrão `5173`):
-
-```bash
 npm run dev:frontend
 ```
-
-Endpoint de health check do backend: `GET http://localhost:3000/health`.
 
 ## Scripts úteis (raiz)
 

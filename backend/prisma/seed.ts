@@ -7,8 +7,8 @@ const SEED_PASSWORD = 'Senha@123';
 
 const SEED_USERS: Array<{ name: string; email: string; role: Role }> = [
   { name: 'Consultor Demo', email: 'consultor@example.com', role: Role.CONSULTOR },
-  { name: 'Gerente Demo', email: 'gerente@example.com', role: Role.GERENTE },
-  { name: 'Crédito Demo', email: 'credito@example.com', role: Role.CREDITO },
+  { name: 'Gerente Comercial Demo', email: 'gerente@example.com', role: Role.GERENTE },
+  { name: 'Gerente de Crédito Demo', email: 'credito@example.com', role: Role.CREDITO },
   { name: 'Admin Demo', email: 'admin@example.com', role: Role.ADMIN },
 ];
 

@@ -2,6 +2,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation } from '@tanstack/react-query'
 import { PropertyForm } from './PropertyForm'
 import { propertiesApi } from './propertiesApi'
+import { toCreatePropertyInput } from './mapPropertyForm'
 import { ApiError } from '../../lib/apiClient'
 import { useToast } from '../../components/ui/Toast'
 import { Card, CardHeader, CardTitle } from '../../components/ui/Card'
@@ -20,20 +21,17 @@ export function NewPropertyPage() {
       navigate(`/clients/${clientId}`)
     },
     onError: (error: unknown) => {
-      showError(error instanceof ApiError ? error.message : 'Não foi possível salvar a propriedade.')
+      showError(
+        error instanceof ApiError
+          ? error.message
+          : 'Não foi possível salvar a propriedade.',
+      )
     },
   })
 
   function handleSubmit(values: PropertyFormValues) {
     if (!clientId) return Promise.resolve()
-    const payload: CreatePropertyInput = {
-      ...values,
-      clientId,
-      stateRegistration: values.stateRegistration || undefined,
-      latitude: values.latitude || undefined,
-      longitude: values.longitude || undefined,
-    }
-    return mutation.mutateAsync(payload)
+    return mutation.mutateAsync(toCreatePropertyInput(values, clientId))
   }
 
   return (

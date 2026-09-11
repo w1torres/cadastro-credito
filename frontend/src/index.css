@@ -1,1 +1,11 @@
 @import 'tailwindcss';
+
+/**
+ * Cor de marca do app — usada em `bg-primary`, `text-primary`, `ring-primary`
+ * etc. em todo o frontend (Button, Field, Sidebar, TopBar...). Tom verde para
+ * bater com o protótipo original (`bg-green-700` / `hover:bg-green-800`).
+ */
+@theme {
+  --color-primary: #15803d;
+  --color-primary-dark: #166534;
+}

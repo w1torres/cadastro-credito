@@ -1,13 +1,54 @@
+import { Navigate, Route, Routes } from 'react-router-dom'
+import { AppShell } from './components/layout/AppShell'
+import { LoginPage } from './features/auth/LoginPage'
+import { RequireAuth } from './features/auth/RequireAuth'
+import { RequireRole } from './features/auth/RequireRole'
+import { DashboardPage } from './features/dashboard/DashboardPage'
+import { ClientsListPage } from './features/clients/ClientsListPage'
+import { NewClientPage } from './features/clients/NewClientPage'
+import { ClientDetailPage } from './features/clients/ClientDetailPage'
+import { NewPropertyPage } from './features/properties/NewPropertyPage'
+import { NewCreditRequestPage } from './features/credit-requests/NewCreditRequestPage'
+import { EditCreditRequestPage } from './features/credit-requests/EditCreditRequestPage'
+import { CreditRequestDetailPage } from './features/credit-requests/CreditRequestDetailPage'
+
 function App() {
   return (
-    <main className="flex min-h-svh items-center justify-center bg-slate-50 p-8">
-      <div className="rounded-lg border border-slate-200 bg-white p-10 text-center shadow-sm">
-        <h1 className="text-2xl font-semibold text-slate-900">
-          Cadastro de Crédito Rural
-        </h1>
-        <p className="mt-2 text-slate-500">App rodando.</p>
-      </div>
-    </main>
+    <Routes>
+      <Route path="/login" element={<LoginPage />} />
+
+      <Route element={<RequireAuth />}>
+        <Route element={<AppShell />}>
+          <Route index element={<Navigate to="/dashboard" replace />} />
+          <Route path="/dashboard" element={<DashboardPage />} />
+
+          <Route element={<RequireRole roles={['CONSULTOR', 'ADMIN']} />}>
+            <Route path="/clients" element={<ClientsListPage />} />
+            <Route path="/clients/new" element={<NewClientPage />} />
+            <Route
+              path="/clients/:clientId/properties/new"
+              element={<NewPropertyPage />}
+            />
+            <Route
+              path="/clients/:clientId/credit-requests/new"
+              element={<NewCreditRequestPage />}
+            />
+            <Route
+              path="/credit-requests/:id/edit"
+              element={<EditCreditRequestPage />}
+            />
+          </Route>
+
+          <Route path="/clients/:id" element={<ClientDetailPage />} />
+          <Route
+            path="/credit-requests/:id"
+            element={<CreditRequestDetailPage />}
+          />
+
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        </Route>
+      </Route>
+    </Routes>
   )
 }
 

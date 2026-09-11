@@ -1,3 +1,5 @@
+import type { Production } from './production'
+
 export interface Property {
   id: string
   clientId: string
@@ -13,6 +15,7 @@ export interface Property {
   irrigatedAreaHectares: string
   createdAt: string
   updatedAt: string
+  productions?: Production[]
 }
 
 export interface CreatePropertyInput {

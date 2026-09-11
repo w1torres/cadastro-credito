@@ -1,0 +1,17 @@
+# Dev image: roda o frontend com hot-reload (Vite dev server).
+# Build context é a raiz do monorepo (necessário para o npm workspaces).
+FROM node:24-alpine
+
+WORKDIR /app
+
+COPY package.json package-lock.json ./
+COPY backend/package.json backend/package.json
+COPY frontend/package.json frontend/package.json
+
+RUN npm ci
+
+COPY frontend frontend
+
+EXPOSE 5173
+
+CMD ["npm", "run", "dev", "--workspace=frontend", "--", "--host", "0.0.0.0"]

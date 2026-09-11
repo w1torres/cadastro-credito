@@ -1,5 +1,11 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { Client, Prisma, Property, Role } from '@prisma/client';
+import {
+  Client,
+  Prisma,
+  Property,
+  PropertyProduction,
+  Role,
+} from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
   paginate,
@@ -30,7 +36,7 @@ export class PropertiesService {
     page: number,
     pageSize: number,
     clientId?: string,
-  ): Promise<PaginatedResult<Property>> {
+  ): Promise<PaginatedResult<Property & { productions: PropertyProduction[] }>> {
     const where: Prisma.PropertyWhereInput = {
       ...(user.role === Role.CONSULTOR
         ? { client: { consultantId: user.id } }
@@ -43,6 +49,7 @@ export class PropertiesService {
         skip: (page - 1) * pageSize,
         take: pageSize,
         orderBy: { createdAt: 'desc' },
+        include: { productions: true },
       }),
       this.prisma.property.count({ where }),
     ]);

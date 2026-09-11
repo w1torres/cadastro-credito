@@ -4,8 +4,8 @@ import type { CreditRequestStatus } from '../types/credit-request-status'
 
 export const ROLE_LABELS: Record<Role, string> = {
   CONSULTOR: 'Consultor',
-  GERENTE: 'Gerente',
-  CREDITO: 'Crédito',
+  GERENTE: 'Gerente Comercial',
+  CREDITO: 'Gerente de Crédito',
   ADMIN: 'Administrador',
 }
 
@@ -16,25 +16,30 @@ export const TIME_IN_BUSINESS_LABELS: Record<TimeInBusiness, string> = {
   LESS_THAN_3_YEARS: 'Menos de 3 anos',
 }
 
-export const CREDIT_REQUEST_STATUS_LABELS: Record<CreditRequestStatus, string> = {
-  DRAFT: 'Rascunho',
-  SUBMITTED_TO_MANAGER: 'Enviado ao gerente',
-  MANAGER_REVIEW: 'Em análise (gerente)',
-  RETURNED_TO_CONSULTANT: 'Devolvido ao consultor',
-  SUBMITTED_TO_CREDIT: 'Enviado ao crédito',
-  CREDIT_REVIEW: 'Em análise (crédito)',
-  RETURNED_TO_MANAGER: 'Devolvido ao gerente',
-  APPROVED: 'Aprovado',
-  REJECTED: 'Reprovado',
-  SIGNATURE_PENDING: 'Aguardando assinatura',
-  SIGNED: 'Assinado',
-  COMPLETED: 'Concluído',
-  CANCELLED: 'Cancelado',
-}
+export const CREDIT_REQUEST_STATUS_LABELS: Record<CreditRequestStatus, string> =
+  {
+    DRAFT: 'Rascunho',
+    SUBMITTED_TO_MANAGER: 'Enviado ao gerente',
+    MANAGER_REVIEW: 'Em análise (gerente)',
+    RETURNED_TO_CONSULTANT: 'Devolvido ao consultor',
+    SUBMITTED_TO_CREDIT: 'Enviado ao crédito',
+    CREDIT_REVIEW: 'Em análise (crédito)',
+    RETURNED_TO_MANAGER: 'Devolvido ao gerente',
+    APPROVED: 'Aprovado',
+    REJECTED: 'Reprovado',
+    SIGNATURE_PENDING: 'Aguardando assinatura',
+    SIGNED: 'Assinado',
+    COMPLETED: 'Concluído',
+    CANCELLED: 'Cancelado',
+  }
 
-export type StatusBadgeVariant = 'neutral' | 'info' | 'warning' | 'success' | 'danger'
+export type StatusBadgeVariant =
+  'neutral' | 'info' | 'warning' | 'success' | 'danger'
 
-export const CREDIT_REQUEST_STATUS_VARIANT: Record<CreditRequestStatus, StatusBadgeVariant> = {
+export const CREDIT_REQUEST_STATUS_VARIANT: Record<
+  CreditRequestStatus,
+  StatusBadgeVariant
+> = {
   DRAFT: 'neutral',
   SUBMITTED_TO_MANAGER: 'info',
   MANAGER_REVIEW: 'warning',
@@ -58,5 +63,8 @@ export function formatDateTime(iso: string): string {
 }
 
 export function formatCurrency(value: string | number): string {
-  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(value))
+  return new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+  }).format(Number(value))
 }

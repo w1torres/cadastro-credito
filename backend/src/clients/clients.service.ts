@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Client, Role } from '@prisma/client';
+import { Client, Partner, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
   paginate,
@@ -52,8 +52,14 @@ export class ClientsService {
   }
 
   /** Usado tambem por Properties/CreditRequests para validar o acesso ao cliente pai. */
-  async findOneForUser(id: string, user: AuthUser): Promise<Client> {
-    const client = await this.prisma.client.findUnique({ where: { id } });
+  async findOneForUser(
+    id: string,
+    user: AuthUser,
+  ): Promise<Client & { partners: Partner[] }> {
+    const client = await this.prisma.client.findUnique({
+      where: { id },
+      include: { partners: true },
+    });
     if (!client) {
       throw new NotFoundException('Cliente não encontrado.');
     }

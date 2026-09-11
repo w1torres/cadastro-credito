@@ -1,4 +1,5 @@
 import type { TimeInBusiness } from './time-in-business'
+import type { Partner } from './partner'
 
 export interface Client {
   id: string
@@ -19,6 +20,7 @@ export interface Client {
   consultantId: string
   createdAt: string
   updatedAt: string
+  partners?: Partner[]
 }
 
 export interface CreateClientInput {
