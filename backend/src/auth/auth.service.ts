@@ -33,7 +33,13 @@ export class AuthService {
       throw new UnauthorizedException('Credenciais inválidas.');
     }
 
-    return { id: user.id, name: user.name, email: user.email, role: user.role };
+    return {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      branchId: user.branchId,
+    };
   }
 
   login(user: AuthUser): Promise<AuthTokens> {

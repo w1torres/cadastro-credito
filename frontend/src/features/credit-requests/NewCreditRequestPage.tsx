@@ -36,8 +36,8 @@ export function NewCreditRequestPage() {
 
   return (
     <Card className="mx-auto max-w-3xl">
-      <CardHeader>
-        <CardTitle>Nova Solicitação de Crédito</CardTitle>
+      <CardHeader tone="brand">
+        <CardTitle className="text-white">Nova Solicitação de Crédito</CardTitle>
       </CardHeader>
       <CreditRequestForm
         onSubmit={handleSubmit}

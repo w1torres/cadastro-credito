@@ -12,12 +12,14 @@ const consultor: AuthUser = {
   name: 'Consultor',
   email: 'consultor@example.com',
   role: 'CONSULTOR',
+  branchId: 'branch-1',
 };
 const gerente: AuthUser = {
   id: 'gerente-1',
   name: 'Gerente',
   email: 'gerente@example.com',
   role: 'GERENTE',
+  branchId: 'branch-1',
 };
 
 describe('ClientsService', () => {
@@ -78,7 +80,7 @@ describe('ClientsService', () => {
       expect(findManyCall.where).toEqual({ consultantId: consultor.id });
     });
 
-    it('does not filter for a GERENTE', async () => {
+    it('filters by the branch of the consultants for a GERENTE', async () => {
       prisma.client.findMany.mockResolvedValue([]);
       prisma.client.count.mockResolvedValue(0);
 
@@ -87,7 +89,9 @@ describe('ClientsService', () => {
       const findManyCall = prisma.client.findMany.mock.calls[0][0] as {
         where: Record<string, unknown>;
       };
-      expect(findManyCall.where).toEqual({});
+      expect(findManyCall.where).toEqual({
+        consultant: { branchId: gerente.branchId },
+      });
     });
   });
 
@@ -98,10 +102,28 @@ describe('ClientsService', () => {
       ).toThrow(ForbiddenException);
     });
 
-    it('allows a GERENTE to view any client', () => {
+    it('allows a GERENTE to view a client from a consultant in the same branch', () => {
       expect(() =>
-        service.assertVisible({ consultantId: 'someone-else' }, gerente),
+        service.assertVisible(
+          {
+            consultantId: 'someone-else',
+            consultant: { branchId: gerente.branchId },
+          },
+          gerente,
+        ),
       ).not.toThrow();
+    });
+
+    it('denies a GERENTE access to a client from a consultant in another branch', () => {
+      expect(() =>
+        service.assertVisible(
+          {
+            consultantId: 'someone-else',
+            consultant: { branchId: 'branch-2' },
+          },
+          gerente,
+        ),
+      ).toThrow(ForbiddenException);
     });
   });
 });

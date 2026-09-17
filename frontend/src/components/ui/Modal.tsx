@@ -25,7 +25,7 @@ export function Modal({ open, onClose, title, children }: ModalProps) {
       ref={ref}
       onClose={onClose}
       onCancel={onClose}
-      className="w-full max-w-md rounded-lg border border-slate-200 p-0 shadow-lg backdrop:bg-slate-900/50"
+      className="m-auto w-full max-w-md rounded-lg border border-slate-200 p-0 shadow-lg backdrop:bg-slate-900/50"
     >
       <div className="flex items-center justify-between border-b border-slate-200 p-4">
         <h2 className="text-lg font-semibold text-slate-900">{title}</h2>

@@ -1,4 +1,10 @@
-import { IsEmail, IsEnum, IsString, MinLength } from 'class-validator';
+import {
+  IsEmail,
+  IsEnum,
+  IsOptional,
+  IsString,
+  MinLength,
+} from 'class-validator';
 import { Role } from '@prisma/client';
 
 export class CreateUserDto {
@@ -15,4 +21,9 @@ export class CreateUserDto {
 
   @IsEnum(Role)
   role!: Role;
+
+  /** Obrigatória na prática para CONSULTOR/GERENTE; CREDITO/ADMIN não têm filial. */
+  @IsOptional()
+  @IsString()
+  branchId?: string;
 }

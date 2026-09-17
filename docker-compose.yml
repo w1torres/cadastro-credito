@@ -30,7 +30,9 @@ services:
       # não por localhost:${POSTGRES_PORT} (isso sobrescreve o DATABASE_URL do .env).
       DATABASE_URL: postgresql://${POSTGRES_USER:-credito_user}:${POSTGRES_PASSWORD:-credito_pass}@postgres:5432/${POSTGRES_DB:-cadastro_credito}?schema=public
     ports:
-      - '${PORT:-3000}:3000'
+      # O app dentro do container também lê PORT (mesmo .env), então os dois
+      # lados do mapeamento precisam usar a mesma variável.
+      - '${PORT:-3000}:${PORT:-3000}'
     volumes:
       - ./backend:/app/backend
       - backend_node_modules:/app/backend/node_modules

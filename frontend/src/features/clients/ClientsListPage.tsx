@@ -13,9 +13,12 @@ export function ClientsListPage() {
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>Clientes</CardTitle>
-        <Link to="/clients/new" className={cn(buttonVariants({ size: 'sm' }))}>
+      <CardHeader tone="brand">
+        <CardTitle className="text-white">Clientes</CardTitle>
+        <Link
+          to="/clients/new"
+          className={cn(buttonVariants({ size: 'sm', variant: 'secondary' }))}
+        >
           <Plus className="size-4" aria-hidden="true" />
           Novo Cliente
         </Link>

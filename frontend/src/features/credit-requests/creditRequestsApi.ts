@@ -27,7 +27,7 @@ interface ReasonPayload extends TransitionPayload {
   reason: string
 }
 
-interface CancelPayload extends TransitionPayload {
+interface OptionalReasonPayload extends TransitionPayload {
   reason?: string
 }
 
@@ -52,14 +52,14 @@ export const creditRequestsApi = {
     api.patch<CreditRequest>(`/credit-requests/${id}`, input),
   history: (id: string) =>
     api.get<CreditRequestHistoryEntry[]>(`/credit-requests/${id}/history`),
-  submit: (id: string, payload: TransitionPayload) =>
+  submit: (id: string, payload: OptionalReasonPayload) =>
     api.post<CreditRequest>(`/credit-requests/${id}/submit`, payload),
   return: (id: string, payload: ReturnPayload) =>
     api.post<CreditRequest>(`/credit-requests/${id}/return`, payload),
-  approve: (id: string, payload: TransitionPayload) =>
+  approve: (id: string, payload: OptionalReasonPayload) =>
     api.post<CreditRequest>(`/credit-requests/${id}/approve`, payload),
   reject: (id: string, payload: ReasonPayload) =>
     api.post<CreditRequest>(`/credit-requests/${id}/reject`, payload),
-  cancel: (id: string, payload: CancelPayload) =>
+  cancel: (id: string, payload: OptionalReasonPayload) =>
     api.post<CreditRequest>(`/credit-requests/${id}/cancel`, payload),
 }

@@ -27,6 +27,20 @@ const EDITABLE_STATUSES: CreditRequestStatus[] = [
   CreditRequestStatus.RETURNED_TO_CONSULTANT,
 ];
 
+const CONSULTANT_SELECT = {
+  id: true,
+  name: true,
+  branchId: true,
+  branch: { select: { id: true, name: true } },
+} as const;
+
+type ConsultantSummary = {
+  id: string;
+  name: string;
+  branchId: string | null;
+  branch: { id: string; name: string } | null;
+};
+
 @Injectable()
 export class CreditRequestsService {
   constructor(
@@ -75,9 +89,15 @@ export class CreditRequestsService {
     pageSize: number,
     clientId?: string,
     status?: CreditRequestStatus,
-  ): Promise<PaginatedResult<CreditRequest>> {
+  ): Promise<
+    PaginatedResult<CreditRequest & { consultant: ConsultantSummary }>
+  > {
     const where: Prisma.CreditRequestWhereInput = {
-      ...(user.role === Role.CONSULTOR ? { consultantId: user.id } : {}),
+      ...(user.role === Role.CONSULTOR
+        ? { consultantId: user.id }
+        : user.role === Role.GERENTE
+          ? { consultant: { branchId: user.branchId } }
+          : {}),
       ...(clientId ? { clientId } : {}),
       ...(status ? { status } : {}),
     };
@@ -87,6 +107,7 @@ export class CreditRequestsService {
         skip: (page - 1) * pageSize,
         take: pageSize,
         orderBy: { createdAt: 'desc' },
+        include: { consultant: { select: CONSULTANT_SELECT } },
       }),
       this.prisma.creditRequest.count({ where }),
     ]);
@@ -125,9 +146,12 @@ export class CreditRequestsService {
     await this.prisma.creditRequest.delete({ where: { id } });
   }
 
-  private async findOwned(id: string): Promise<CreditRequest> {
+  private async findOwned(
+    id: string,
+  ): Promise<CreditRequest & { consultant: ConsultantSummary }> {
     const creditRequest = await this.prisma.creditRequest.findUnique({
       where: { id },
+      include: { consultant: { select: CONSULTANT_SELECT } },
     });
     if (!creditRequest) {
       throw new NotFoundException('Solicitação de crédito não encontrada.');
@@ -136,12 +160,20 @@ export class CreditRequestsService {
   }
 
   private assertVisible(
-    creditRequest: Pick<CreditRequest, 'consultantId'>,
+    creditRequest: Pick<CreditRequest, 'consultantId'> & {
+      consultant?: { branchId: string | null };
+    },
     user: AuthUser,
   ): void {
     if (
       user.role === Role.CONSULTOR &&
       creditRequest.consultantId !== user.id
+    ) {
+      throw new ForbiddenException('Você não tem acesso a esta solicitação.');
+    }
+    if (
+      user.role === Role.GERENTE &&
+      creditRequest.consultant?.branchId !== user.branchId
     ) {
       throw new ForbiddenException('Você não tem acesso a esta solicitação.');
     }

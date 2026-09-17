@@ -13,6 +13,7 @@ const consultor: AuthUser = {
   name: 'Consultor',
   email: 'consultor@example.com',
   role: 'CONSULTOR',
+  branchId: 'branch-1',
 };
 
 describe('CreditRequestsService', () => {

@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Client, Partner, Role } from '@prisma/client';
+import { Client, Partner, Prisma, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
   paginate,
@@ -38,7 +38,12 @@ export class ClientsService {
     page: number,
     pageSize: number,
   ): Promise<PaginatedResult<Client>> {
-    const where = user.role === Role.CONSULTOR ? { consultantId: user.id } : {};
+    const where: Prisma.ClientWhereInput =
+      user.role === Role.CONSULTOR
+        ? { consultantId: user.id }
+        : user.role === Role.GERENTE
+          ? { consultant: { branchId: user.branchId } }
+          : {};
     const [clients, total] = await Promise.all([
       this.prisma.client.findMany({
         where,
@@ -55,10 +60,18 @@ export class ClientsService {
   async findOneForUser(
     id: string,
     user: AuthUser,
-  ): Promise<Client & { partners: Partner[] }> {
+  ): Promise<
+    Client & {
+      partners: Partner[];
+      consultant: { branchId: string | null };
+    }
+  > {
     const client = await this.prisma.client.findUnique({
       where: { id },
-      include: { partners: true },
+      include: {
+        partners: true,
+        consultant: { select: { branchId: true } },
+      },
     });
     if (!client) {
       throw new NotFoundException('Cliente não encontrado.');
@@ -77,9 +90,23 @@ export class ClientsService {
     return this.prisma.client.update({ where: { id: client.id }, data: dto });
   }
 
-  /** CONSULTOR só enxerga os próprios clientes; GERENTE/CREDITO/ADMIN enxergam todos. */
-  assertVisible(client: Pick<Client, 'consultantId'>, user: AuthUser): void {
+  /**
+   * CONSULTOR só enxerga os próprios clientes; GERENTE só enxerga clientes de
+   * consultores da própria filial; CREDITO/ADMIN enxergam todos.
+   */
+  assertVisible(
+    client: Pick<Client, 'consultantId'> & {
+      consultant?: { branchId: string | null };
+    },
+    user: AuthUser,
+  ): void {
     if (user.role === Role.CONSULTOR && client.consultantId !== user.id) {
+      throw new ForbiddenException('Você não tem acesso a este cliente.');
+    }
+    if (
+      user.role === Role.GERENTE &&
+      client.consultant?.branchId !== user.branchId
+    ) {
       throw new ForbiddenException('Você não tem acesso a este cliente.');
     }
   }

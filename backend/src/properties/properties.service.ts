@@ -40,7 +40,9 @@ export class PropertiesService {
     const where: Prisma.PropertyWhereInput = {
       ...(user.role === Role.CONSULTOR
         ? { client: { consultantId: user.id } }
-        : {}),
+        : user.role === Role.GERENTE
+          ? { client: { consultant: { branchId: user.branchId } } }
+          : {}),
       ...(clientId ? { clientId } : {}),
     };
     const [properties, total] = await Promise.all([
@@ -77,10 +79,16 @@ export class PropertiesService {
   async findWithClient(
     id: string,
     user: AuthUser,
-  ): Promise<Property & { client: Client }> {
+  ): Promise<
+    Property & {
+      client: Client & { consultant: { branchId: string | null } };
+    }
+  > {
     const property = await this.prisma.property.findUnique({
       where: { id },
-      include: { client: true },
+      include: {
+        client: { include: { consultant: { select: { branchId: true } } } },
+      },
     });
     if (!property) {
       throw new NotFoundException('Propriedade não encontrada.');

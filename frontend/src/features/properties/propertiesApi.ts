@@ -6,4 +6,6 @@ export const propertiesApi = {
   listByClient: (clientId: string) =>
     api.get<PaginatedResult<Property>>(`/properties?clientId=${clientId}&pageSize=100`),
   create: (input: CreatePropertyInput) => api.post<Property>('/properties', input),
+  update: (id: string, input: Partial<Omit<CreatePropertyInput, 'clientId'>>) =>
+    api.patch<Property>(`/properties/${id}`, input),
 }

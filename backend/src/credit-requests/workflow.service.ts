@@ -155,9 +155,12 @@ export class WorkflowService {
     return match;
   }
 
-  private async findOwned(id: string): Promise<CreditRequest> {
+  private async findOwned(
+    id: string,
+  ): Promise<CreditRequest & { consultant: { branchId: string | null } }> {
     const creditRequest = await this.prisma.creditRequest.findUnique({
       where: { id },
+      include: { consultant: { select: { branchId: true } } },
     });
     if (!creditRequest) {
       throw new NotFoundException('Solicitação de crédito não encontrada.');
@@ -166,12 +169,20 @@ export class WorkflowService {
   }
 
   private assertVisible(
-    creditRequest: Pick<CreditRequest, 'consultantId'>,
+    creditRequest: Pick<CreditRequest, 'consultantId'> & {
+      consultant?: { branchId: string | null };
+    },
     user: AuthUser,
   ): void {
     if (
       user.role === Role.CONSULTOR &&
       creditRequest.consultantId !== user.id
+    ) {
+      throw new ForbiddenException('Você não tem acesso a esta solicitação.');
+    }
+    if (
+      user.role === Role.GERENTE &&
+      creditRequest.consultant?.branchId !== user.branchId
     ) {
       throw new ForbiddenException('Você não tem acesso a esta solicitação.');
     }

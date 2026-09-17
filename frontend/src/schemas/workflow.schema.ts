@@ -16,3 +16,8 @@ export const cancelSchema = z.object({
   reason: z.string().trim().optional().or(z.literal('')),
 })
 export type CancelFormValues = z.infer<typeof cancelSchema>
+
+export const observationSchema = z.object({
+  reason: z.string().trim().optional().or(z.literal('')),
+})
+export type ObservationFormValues = z.infer<typeof observationSchema>

@@ -19,10 +19,10 @@ export const TIME_IN_BUSINESS_LABELS: Record<TimeInBusiness, string> = {
 export const CREDIT_REQUEST_STATUS_LABELS: Record<CreditRequestStatus, string> =
   {
     DRAFT: 'Rascunho',
-    SUBMITTED_TO_MANAGER: 'Enviado ao gerente',
+    SUBMITTED_TO_MANAGER: 'Aguardando análise (gerente)',
     MANAGER_REVIEW: 'Em análise (gerente)',
     RETURNED_TO_CONSULTANT: 'Devolvido ao consultor',
-    SUBMITTED_TO_CREDIT: 'Enviado ao crédito',
+    SUBMITTED_TO_CREDIT: 'Aguardando análise (crédito)',
     CREDIT_REVIEW: 'Em análise (crédito)',
     RETURNED_TO_MANAGER: 'Devolvido ao gerente',
     APPROVED: 'Aprovado',

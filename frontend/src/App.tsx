@@ -9,8 +9,11 @@ import { NewClientPage } from './features/clients/NewClientPage'
 import { ClientDetailPage } from './features/clients/ClientDetailPage'
 import { NewPropertyPage } from './features/properties/NewPropertyPage'
 import { NewCreditRequestPage } from './features/credit-requests/NewCreditRequestPage'
-import { EditCreditRequestPage } from './features/credit-requests/EditCreditRequestPage'
+import { EditClientRequestPage } from './features/credit-requests/EditClientRequestPage'
 import { CreditRequestDetailPage } from './features/credit-requests/CreditRequestDetailPage'
+import { UsersListPage } from './features/admin/UsersListPage'
+import { NewUserPage } from './features/admin/NewUserPage'
+import { EditUserPage } from './features/admin/EditUserPage'
 
 function App() {
   return (
@@ -35,7 +38,7 @@ function App() {
             />
             <Route
               path="/credit-requests/:id/edit"
-              element={<EditCreditRequestPage />}
+              element={<EditClientRequestPage />}
             />
           </Route>
 
@@ -44,6 +47,12 @@ function App() {
             path="/credit-requests/:id"
             element={<CreditRequestDetailPage />}
           />
+
+          <Route element={<RequireRole roles={['ADMIN']} />}>
+            <Route path="/admin/users" element={<UsersListPage />} />
+            <Route path="/admin/users/new" element={<NewUserPage />} />
+            <Route path="/admin/users/:id/edit" element={<EditUserPage />} />
+          </Route>
 
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Route>

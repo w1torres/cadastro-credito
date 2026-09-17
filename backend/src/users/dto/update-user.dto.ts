@@ -1,4 +1,5 @@
 import { OmitType, PartialType } from '@nestjs/mapped-types';
+import { IsBoolean, IsOptional } from 'class-validator';
 import { CreateUserDto } from './create-user.dto.js';
 
 /**
@@ -7,4 +8,9 @@ import { CreateUserDto } from './create-user.dto.js';
  */
 export class UpdateUserDto extends PartialType(
   OmitType(CreateUserDto, ['password'] as const),
-) {}
+) {
+  /** Desativar bloqueia login e invalida o token na próxima requisição (ver JwtStrategy). */
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+}

@@ -4,12 +4,14 @@ import {
   InputField,
   TextareaField,
 } from '../../components/ui/Field'
+import { CurrencyField } from '../../components/ui/CurrencyField'
 import type { NewClientRequestFormValues } from '../../schemas/new-client-request.schema'
 
 export function CreditRequestFieldsSection() {
   const {
     register,
     watch,
+    control,
     formState: { errors },
   } = useFormContext<NewClientRequestFormValues>()
 
@@ -20,12 +22,11 @@ export function CreditRequestFieldsSection() {
 
   return (
     <div className="flex flex-col gap-4">
-      <InputField
-        label="Valor de crédito solicitado (R$)"
+      <CurrencyField
+        name="creditRequest.requestedCreditLimit"
+        control={control}
+        label="Valor de crédito solicitado"
         required
-        placeholder="150000.00"
-        error={errors.creditRequest?.requestedCreditLimit?.message}
-        {...register('creditRequest.requestedCreditLimit')}
       />
 
       <CheckboxField

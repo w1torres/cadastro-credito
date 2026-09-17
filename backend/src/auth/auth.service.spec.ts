@@ -110,6 +110,7 @@ describe('AuthService', () => {
         name: 'Fulano',
         email: 'fulano@example.com',
         role: 'CONSULTOR',
+        branchId: null,
       });
 
       expect(tokens).toEqual({

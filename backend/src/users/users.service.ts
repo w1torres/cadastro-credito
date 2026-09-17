@@ -15,7 +15,9 @@ import type { User } from '@prisma/client';
 
 const SALT_ROUNDS = 10;
 
-export type SafeUser = Omit<User, 'passwordHash'>;
+export type SafeUser = Omit<User, 'passwordHash'> & {
+  branch: { id: string; name: string } | null;
+};
 
 const SAFE_USER_SELECT = {
   id: true,
@@ -23,9 +25,11 @@ const SAFE_USER_SELECT = {
   email: true,
   role: true,
   isActive: true,
+  branchId: true,
+  branch: { select: { id: true, name: true } },
   createdAt: true,
   updatedAt: true,
-} satisfies Record<keyof SafeUser, true>;
+} satisfies Record<keyof Omit<User, 'passwordHash'> | 'branch', unknown>;
 
 @Injectable()
 export class UsersService {
@@ -41,7 +45,13 @@ export class UsersService {
 
     const passwordHash = await bcrypt.hash(dto.password, SALT_ROUNDS);
     return this.prisma.user.create({
-      data: { name: dto.name, email: dto.email, role: dto.role, passwordHash },
+      data: {
+        name: dto.name,
+        email: dto.email,
+        role: dto.role,
+        branchId: dto.branchId,
+        passwordHash,
+      },
       select: SAFE_USER_SELECT,
     });
   }

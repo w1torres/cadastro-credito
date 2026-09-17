@@ -7,6 +7,7 @@ import {
   InputField,
   TextareaField,
 } from '../../components/ui/Field'
+import { CurrencyField } from '../../components/ui/CurrencyField'
 import { Button } from '../../components/ui/Button'
 
 interface CreditRequestFormProps {
@@ -35,6 +36,7 @@ export function CreditRequestForm({
     register,
     handleSubmit,
     watch,
+    control,
     formState: { errors },
   } = useForm<CreditRequestFormValues>({
     resolver: zodResolver(creditRequestSchema),
@@ -52,12 +54,11 @@ export function CreditRequestForm({
       className="flex flex-col gap-4"
       noValidate
     >
-      <InputField
-        label="Valor de crédito solicitado (R$)"
+      <CurrencyField
+        name="requestedCreditLimit"
+        control={control}
+        label="Valor de crédito solicitado"
         required
-        placeholder="150000.00"
-        error={errors.requestedCreditLimit?.message}
-        {...register('requestedCreditLimit')}
       />
 
       <CheckboxField

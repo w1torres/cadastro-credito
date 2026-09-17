@@ -11,7 +11,7 @@ import { Roles } from '../auth/decorators/roles.decorator.js';
 import { CurrentUser } from '../auth/decorators/current-user.decorator.js';
 import type { AuthUser } from '../auth/types/auth-user.type.js';
 import { WorkflowService } from './workflow.service.js';
-import { TransitionDto } from './dto/transition-base.dto.js';
+import { TransitionWithReasonDto } from './dto/transition-with-reason.dto.js';
 import { ReturnCreditRequestDto } from './dto/return-credit-request.dto.js';
 import { RejectCreditRequestDto } from './dto/reject-credit-request.dto.js';
 import { CancelCreditRequestDto } from './dto/cancel-credit-request.dto.js';
@@ -24,7 +24,7 @@ export class WorkflowController {
   @Post(':id/submit')
   submit(
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: TransitionDto,
+    @Body() dto: TransitionWithReasonDto,
     @CurrentUser() user: AuthUser,
   ) {
     return this.workflowService.transition(id, 'SUBMIT', dto, user);
@@ -44,7 +44,7 @@ export class WorkflowController {
   @Post(':id/approve')
   approve(
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: TransitionDto,
+    @Body() dto: TransitionWithReasonDto,
     @CurrentUser() user: AuthUser,
   ) {
     return this.workflowService.transition(id, 'APPROVE', dto, user);

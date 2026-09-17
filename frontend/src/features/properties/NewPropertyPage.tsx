@@ -36,8 +36,8 @@ export function NewPropertyPage() {
 
   return (
     <Card className="mx-auto max-w-2xl">
-      <CardHeader>
-        <CardTitle>Nova Propriedade</CardTitle>
+      <CardHeader tone="brand">
+        <CardTitle className="text-white">Nova Propriedade</CardTitle>
       </CardHeader>
       <PropertyForm onSubmit={handleSubmit} isSubmitting={mutation.isPending} />
     </Card>

@@ -9,6 +9,7 @@ import { UsersModule } from './users/users.module.js';
 import { ClientsModule } from './clients/clients.module.js';
 import { PropertiesModule } from './properties/properties.module.js';
 import { CreditRequestsModule } from './credit-requests/credit-requests.module.js';
+import { BranchesModule } from './branches/branches.module.js';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { CreditRequestsModule } from './credit-requests/credit-requests.module.j
     ClientsModule,
     PropertiesModule,
     CreditRequestsModule,
+    BranchesModule,
   ],
   controllers: [AppController],
   providers: [AppService],

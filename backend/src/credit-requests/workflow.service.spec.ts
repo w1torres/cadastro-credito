@@ -16,24 +16,28 @@ const consultor: AuthUser = {
   name: 'Consultor',
   email: 'consultor@example.com',
   role: 'CONSULTOR',
+  branchId: 'branch-1',
 };
 const gerente: AuthUser = {
   id: 'gerente-1',
   name: 'Gerente',
   email: 'gerente@example.com',
   role: 'GERENTE',
+  branchId: 'branch-1',
 };
 const credito: AuthUser = {
   id: 'credito-1',
   name: 'Credito',
   email: 'credito@example.com',
   role: 'CREDITO',
+  branchId: null,
 };
 const admin: AuthUser = {
   id: 'admin-1',
   name: 'Admin',
   email: 'admin@example.com',
   role: 'ADMIN',
+  branchId: null,
 };
 
 const UPDATED_AT = new Date('2026-01-01T00:00:00.000Z');

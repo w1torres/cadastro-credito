@@ -6,4 +6,6 @@ export const clientsApi = {
   list: (page = 1, pageSize = 20) => api.get<PaginatedResult<Client>>(`/clients?page=${page}&pageSize=${pageSize}`),
   get: (id: string) => api.get<Client>(`/clients/${id}`),
   create: (input: CreateClientInput) => api.post<Client>('/clients', input),
+  update: (id: string, input: Partial<CreateClientInput>) =>
+    api.patch<Client>(`/clients/${id}`, input),
 }

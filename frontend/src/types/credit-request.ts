@@ -22,6 +22,11 @@ export interface CreditRequest {
   otherActivityDescription: string | null
   createdAt: string
   updatedAt: string
+  consultant?: {
+    id: string
+    name: string
+    branch: { id: string; name: string } | null
+  }
 }
 
 export interface CreateCreditRequestInput {

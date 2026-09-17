@@ -2,12 +2,13 @@ import { LogOut, Menu } from 'lucide-react'
 import { useAuth } from '../../features/auth/AuthContext'
 import { ROLE_LABELS } from '../../lib/labels'
 import { Button } from '../ui/Button'
+import logo from '../../assets/logo.png'
 
 export function TopBar({ onOpenMenu }: { onOpenMenu: () => void }) {
   const { user, logout } = useAuth()
 
   return (
-    <header className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3 md:px-8">
+    <header className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-4 md:px-8">
       <div className="flex items-center gap-3">
         <button
           type="button"
@@ -17,7 +18,10 @@ export function TopBar({ onOpenMenu }: { onOpenMenu: () => void }) {
         >
           <Menu className="size-5" aria-hidden="true" />
         </button>
-        <span className="font-semibold text-primary">Cadastro de Crédito Rural</span>
+        <img src={logo} alt="Tchê" className="h-9 w-9" />
+        <span className="text-lg font-bold tracking-tight text-primary-dark">
+          Cadastro de Crédito Rural
+        </span>
       </div>
       {user && (
         <div className="flex items-center gap-3">

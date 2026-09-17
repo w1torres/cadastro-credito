@@ -2,8 +2,8 @@ import { forwardRef, useId } from 'react'
 import type { InputHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes } from 'react'
 import { cn } from '../../lib/cn'
 
-const controlClassName =
-  'block w-full rounded-md border border-slate-300 px-3 py-2 text-sm shadow-sm placeholder:text-slate-400 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary disabled:bg-slate-100 disabled:text-slate-500'
+export const controlClassName =
+  'block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm placeholder:text-slate-400 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary disabled:bg-slate-100 disabled:text-slate-500'
 
 interface FieldWrapperProps {
   id: string
@@ -14,7 +14,7 @@ interface FieldWrapperProps {
   children: ReactNode
 }
 
-function FieldWrapper({ id, label, error, hint, required, children }: FieldWrapperProps) {
+export function FieldWrapper({ id, label, error, hint, required, children }: FieldWrapperProps) {
   return (
     <div className="flex flex-col gap-1">
       <label htmlFor={id} className="text-sm font-medium text-slate-700">

@@ -22,6 +22,9 @@ export function ClientDetailPage() {
   const { id } = useParams<{ id: string }>()
   const { user } = useAuth()
   const canManage = user?.role === 'CONSULTOR' || user?.role === 'ADMIN'
+  // GERENTE nunca vê o valor solicitado — some a coluna inteira. Para o
+  // CONSULTOR varia por linha (some só depois do envio ao gerente).
+  const showValueColumn = user?.role !== 'GERENTE'
 
   const clientQuery = useQuery({
     queryKey: ['client', id],
@@ -46,14 +49,20 @@ export function ClientDetailPage() {
   return (
     <div className="flex flex-col gap-6">
       <Card>
-        <CardHeader>
-          <CardTitle>{client.name}</CardTitle>
+        <CardHeader tone="brand">
+          <CardTitle className="text-white">{client.name}</CardTitle>
         </CardHeader>
         <dl className="grid gap-4 text-sm sm:grid-cols-2">
           <div>
             <dt className="text-slate-500">Documento</dt>
             <dd className="text-slate-900">{client.document}</dd>
           </div>
+          {client.spouseName && (
+            <div>
+              <dt className="text-slate-500">Cônjuge</dt>
+              <dd className="text-slate-900">{client.spouseName}</dd>
+            </div>
+          )}
           <div>
             <dt className="text-slate-500">Telefone</dt>
             <dd className="text-slate-900">{client.phone}</dd>
@@ -63,9 +72,10 @@ export function ClientDetailPage() {
             <dd className="text-slate-900">{client.email}</dd>
           </div>
           <div>
-            <dt className="text-slate-500">Cidade/UF</dt>
+            <dt className="text-slate-500">Endereço</dt>
             <dd className="text-slate-900">
-              {client.city}/{client.state}
+              {client.address}, {client.city}/{client.state} —{' '}
+              {client.zipCode}
             </dd>
           </div>
           <div>
@@ -74,10 +84,24 @@ export function ClientDetailPage() {
               {TIME_IN_BUSINESS_LABELS[client.timeInBusiness]}
             </dd>
           </div>
-          {client.spouseName && (
-            <div>
-              <dt className="text-slate-500">Cônjuge</dt>
-              <dd className="text-slate-900">{client.spouseName}</dd>
+          <div>
+            <dt className="text-slate-500">Cadastro facilitado</dt>
+            <dd className="text-slate-900">
+              {client.hasEasyRegistrationInfo ? 'Sim' : 'Não'}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-slate-500">Referência comercial</dt>
+            <dd className="text-slate-900">
+              {client.hasCommercialReference
+                ? client.commercialReferenceNotes
+                : 'Não possui'}
+            </dd>
+          </div>
+          {client.relevantInfo && (
+            <div className="sm:col-span-2">
+              <dt className="text-slate-500">Observações</dt>
+              <dd className="text-slate-900">{client.relevantInfo}</dd>
             </div>
           )}
         </dl>
@@ -131,7 +155,9 @@ export function ClientDetailPage() {
                 <tr className="border-b border-slate-200 text-slate-500">
                   <th className="py-2 font-medium">Nome</th>
                   <th className="py-2 font-medium">Cidade/UF</th>
-                  <th className="py-2 font-medium">Área própria (ha)</th>
+                  <th className="py-2 font-medium">Região</th>
+                  <th className="py-2 font-medium">Áreas (ha)</th>
+                  <th className="py-2 font-medium">Culturas</th>
                 </tr>
               </thead>
               <tbody>
@@ -146,19 +172,28 @@ export function ClientDetailPage() {
                     <td className="py-2 text-slate-600">
                       {property.city}/{property.state}
                     </td>
+                    <td className="py-2 text-slate-600">{property.region}</td>
                     <td className="py-2 text-slate-600">
-                      {property.ownAreaHectares}
+                      Própria: {property.ownAreaHectares}
+                      <br />
+                      Arrendada: {property.leasedAreaHectares}
+                      <br />
+                      Irrigada: {property.irrigatedAreaHectares}
+                    </td>
+                    <td className="py-2 text-slate-600">
                       {property.productions &&
-                        property.productions.length > 0 && (
-                          <ul className="mt-1 text-xs text-slate-500">
-                            {property.productions.map((production) => (
-                              <li key={production.id}>
-                                {production.harvestYear} — {production.cropName}
-                                : {production.hectares} ha
-                              </li>
-                            ))}
-                          </ul>
-                        )}
+                      property.productions.length > 0 ? (
+                        <ul className="text-xs text-slate-500">
+                          {property.productions.map((production) => (
+                            <li key={production.id}>
+                              {production.cropName}: {production.hectares} ha
+                              ({production.harvestYear})
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        '—'
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -191,7 +226,9 @@ export function ClientDetailPage() {
             <table className="w-full text-left text-sm">
               <thead>
                 <tr className="border-b border-slate-200 text-slate-500">
-                  <th className="py-2 font-medium">Valor solicitado</th>
+                  {showValueColumn && (
+                    <th className="py-2 font-medium">Valor solicitado</th>
+                  )}
                   <th className="py-2 font-medium">Status</th>
                   <th className="py-2 font-medium" />
                 </tr>
@@ -202,9 +239,14 @@ export function ClientDetailPage() {
                     key={creditRequest.id}
                     className="border-b border-slate-100 last:border-0"
                   >
-                    <td className="py-2 text-slate-900">
-                      {formatCurrency(creditRequest.requestedCreditLimit)}
-                    </td>
+                    {showValueColumn && (
+                      <td className="py-2 text-slate-900">
+                        {user?.role === 'CONSULTOR' &&
+                        creditRequest.status !== 'DRAFT'
+                          ? '—'
+                          : formatCurrency(creditRequest.requestedCreditLimit)}
+                      </td>
+                    )}
                     <td className="py-2">
                       <Badge
                         variant={

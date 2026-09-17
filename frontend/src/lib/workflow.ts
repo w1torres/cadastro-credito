@@ -9,6 +9,8 @@ export interface WorkflowActionOption {
   label: string
   variant: 'primary' | 'danger'
   targets?: { value: CreditRequestStatus; label: string }[]
+  /** Só pede observação/parecer quando a ação realmente encaminha a solicitação para a próxima etapa/papel. */
+  requiresObservation: boolean
 }
 
 interface TransitionRule {
@@ -19,6 +21,8 @@ interface TransitionRule {
   label: string
   variant: 'primary' | 'danger'
   targets?: { value: CreditRequestStatus; label: string }[]
+  /** `false` para ações que só "assumem" a solicitação (iniciar/reiniciar análise) sem encaminhá-la a ninguém — padrão `true`. */
+  requiresObservation?: boolean
 }
 
 /**
@@ -48,6 +52,7 @@ const RULES: TransitionRule[] = [
     roles: ['GERENTE'],
     label: 'Iniciar análise',
     variant: 'primary',
+    requiresObservation: false,
   },
   {
     action: 'SUBMIT',
@@ -62,6 +67,7 @@ const RULES: TransitionRule[] = [
     roles: ['CREDITO'],
     label: 'Iniciar análise',
     variant: 'primary',
+    requiresObservation: false,
   },
   {
     action: 'SUBMIT',
@@ -69,6 +75,7 @@ const RULES: TransitionRule[] = [
     roles: ['GERENTE'],
     label: 'Reiniciar análise',
     variant: 'primary',
+    requiresObservation: false,
   },
 
   {
@@ -166,10 +173,11 @@ export function getAvailableActions(
     if (!rule.roles.includes(role)) return false
     if (rule.requiresOwnership && !isOwner) return false
     return true
-  }).map(({ action, label, variant, targets }) => ({
+  }).map(({ action, label, variant, targets, requiresObservation }) => ({
     action,
     label,
     variant,
     targets,
+    requiresObservation: requiresObservation ?? true,
   }))
 }
