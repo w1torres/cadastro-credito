@@ -37,6 +37,9 @@ services:
       - ./backend:/app/backend
       - backend_node_modules:/app/backend/node_modules
       - backend_root_node_modules:/app/node_modules
+      # Fase 5 — StorageService (disco local, ver ADR-016): arquivos de
+      # documentos persistem aqui, fora do bind mount do código-fonte.
+      - document_storage:/app/backend/storage
     depends_on:
       postgres:
         condition: service_healthy
@@ -64,3 +67,4 @@ volumes:
   backend_root_node_modules:
   frontend_node_modules:
   frontend_root_node_modules:
+  document_storage:

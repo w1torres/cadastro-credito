@@ -5,7 +5,10 @@ import { AppModule } from './app.module.js';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter.js';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  // rawBody: true expõe req.rawBody (bytes crus) — necessário pro webhook da
+  // Clicksign validar o HMAC sobre o corpo exato recebido, sem reformatar o
+  // JSON (ver signatures.controller.ts).
+  const app = await NestFactory.create(AppModule, { rawBody: true });
   const configService = app.get(ConfigService);
 
   app.setGlobalPrefix('api', { exclude: ['health'] });

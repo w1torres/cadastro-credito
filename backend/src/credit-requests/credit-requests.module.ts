@@ -9,5 +9,8 @@ import { WorkflowService } from './workflow.service.js';
   imports: [ClientsModule],
   controllers: [CreditRequestsController, WorkflowController],
   providers: [CreditRequestsService, WorkflowService],
+  // Exportado para DocumentsModule/SignaturesModule (Fases 5/6) reaproveitarem
+  // findOneForUser/assertEditable em vez de duplicar a regra de visibilidade.
+  exports: [CreditRequestsService],
 })
 export class CreditRequestsModule {}

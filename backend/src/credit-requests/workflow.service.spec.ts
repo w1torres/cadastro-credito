@@ -59,6 +59,7 @@ describe('WorkflowService', () => {
     creditRequest: { findUnique: AnyMock; update: AnyMock };
     creditRequestHistory: { create: AnyMock; findMany: AnyMock };
     property: { count: AnyMock };
+    signatureRequest: { findFirst: AnyMock };
     auditLog: { create: AnyMock };
     $transaction: AnyMock;
   };
@@ -68,6 +69,7 @@ describe('WorkflowService', () => {
       creditRequest: { findUnique: vi.fn(), update: vi.fn() },
       creditRequestHistory: { create: vi.fn(), findMany: vi.fn() },
       property: { count: vi.fn() },
+      signatureRequest: { findFirst: vi.fn() },
       auditLog: { create: vi.fn() },
       $transaction: vi.fn(),
     };
@@ -75,6 +77,12 @@ describe('WorkflowService', () => {
       (callback: (tx: typeof prisma) => unknown) => callback(prisma),
     );
     prisma.property.count.mockResolvedValue(1);
+    // Autorização SPC/Bacen assinada por padrão — os testes de bloqueio abaixo
+    // sobrescrevem para `null` explicitamente (ver requiresSignedAuthorization).
+    prisma.signatureRequest.findFirst.mockResolvedValue({
+      id: 'sig-1',
+      status: 'SIGNED',
+    });
     prisma.creditRequest.update.mockImplementation(
       ({ where, data }: { where: { id: string }; data: { status: string } }) =>
         Promise.resolve({
@@ -231,6 +239,38 @@ describe('WorkflowService', () => {
         consultor,
       ),
     ).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('blocks SUBMIT from DRAFT when the client has not signed the SPC/Bacen authorization', async () => {
+    prisma.creditRequest.findUnique.mockResolvedValue(baseCreditRequest());
+    prisma.signatureRequest.findFirst.mockResolvedValue(null);
+
+    await expect(
+      service.transition(
+        'cr-1',
+        'SUBMIT',
+        { expectedUpdatedAt: UPDATED_AT.toISOString() },
+        consultor,
+      ),
+    ).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('allows SUBMIT from RETURNED_TO_CONSULTANT once the SPC/Bacen authorization is signed', async () => {
+    prisma.creditRequest.findUnique.mockResolvedValue(
+      baseCreditRequest({ status: 'RETURNED_TO_CONSULTANT' }),
+    );
+
+    const result = await service.transition(
+      'cr-1',
+      'SUBMIT',
+      { expectedUpdatedAt: UPDATED_AT.toISOString() },
+      consultor,
+    );
+
+    expect(result.status).toBe('SUBMITTED_TO_MANAGER');
+    expect(prisma.signatureRequest.findFirst).toHaveBeenCalledWith({
+      where: { creditRequestId: 'cr-1', status: 'SIGNED' },
+    });
   });
 
   it('rejects ownership-gated actions from a non-owning CONSULTOR', async () => {

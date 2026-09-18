@@ -66,6 +66,17 @@ export class WorkflowService {
       }
     }
 
+    if (rule.requiresSignedAuthorization) {
+      const signed = await this.prisma.signatureRequest.findFirst({
+        where: { creditRequestId: id, status: 'SIGNED' },
+      });
+      if (!signed) {
+        throw new ConflictException(
+          'É necessário que o cliente assine a autorização de consulta ao SPC/Bacen antes de enviar a solicitação.',
+        );
+      }
+    }
+
     return this.prisma.$transaction(async (tx) => {
       const updated = await tx.creditRequest.update({
         where: { id },

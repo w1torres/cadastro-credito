@@ -1,7 +1,9 @@
 import { clearSession, getSession, setSession } from './session'
 import type { AuthTokens, Session } from '../types/auth'
 
-const API_BASE = `${import.meta.env.VITE_API_URL}/api`
+// Exportado para uploads multipart (ex.: documentsApi.ts), que não podem
+// passar por `apiFetch` — ele sempre serializa o body como JSON.
+export const API_BASE = `${import.meta.env.VITE_API_URL}/api`
 
 interface ErrorEnvelope {
   success: false
@@ -20,7 +22,10 @@ export class ApiError extends Error {
   }
 }
 
-async function parseResponse<T>(response: Response): Promise<T> {
+// Exportado pelo mesmo motivo que API_BASE — uploads multipart fazem o
+// próprio `fetch` (ver documentsApi.ts) mas reaproveitam este parser de
+// resposta para lançar o mesmo ApiError do resto do app.
+export async function parseResponse<T>(response: Response): Promise<T> {
   const text = await response.text()
   const body = text ? (JSON.parse(text) as unknown) : undefined
 

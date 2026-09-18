@@ -1,6 +1,8 @@
 import type { Role } from '../types/role'
 import type { TimeInBusiness } from '../types/time-in-business'
 import type { CreditRequestStatus } from '../types/credit-request-status'
+import type { DocumentType } from '../types/document'
+import type { SignatureStatus } from '../types/signature'
 
 export const ROLE_LABELS: Record<Role, string> = {
   CONSULTOR: 'Consultor',
@@ -52,6 +54,45 @@ export const CREDIT_REQUEST_STATUS_VARIANT: Record<
   SIGNATURE_PENDING: 'info',
   SIGNED: 'success',
   COMPLETED: 'success',
+  CANCELLED: 'neutral',
+}
+
+// Fase 5 — checklist de documentos do protótipo HTML (seção "5 — DOCUMENTOS E ANEXOS").
+export const DOCUMENT_TYPE_LABELS: Record<DocumentType, string> = {
+  IMPOSTO_RENDA: 'Imposto de Renda',
+  DOCUMENTACAO_PESSOAL: 'Documentação Pessoal do Cliente',
+  COMPROVANTE_ENDERECO: 'Comprovante de Endereço',
+  CONTRATO_SOCIAL: 'Contrato Social',
+  CERTIDAO_ONUS_FAZENDA: 'Certidão de Ônus da Fazenda',
+  CONTRATO_ARRENDAMENTO: 'Contrato de Arrendamento',
+  DRE: 'DRE',
+  CAR: 'CAR',
+  DOCUMENTACAO_SOCIOS: 'Cópia da Documentação dos Sócios',
+  AUTORIZACAO_SPC_BACEN: 'Termo de Autorização de Consulta SPC/Bacen',
+  OUTROS: 'Outros Documentos / Anexos',
+}
+
+// Fase 6 — status da autorização de consulta SPC/Bacen via Clicksign (ver ADR-017).
+export const SIGNATURE_STATUS_LABELS: Record<SignatureStatus, string> = {
+  PENDING: 'Pendente',
+  SENT: 'Enviada — aguardando assinatura do cliente',
+  VIEWED: 'Visualizada pelo cliente',
+  SIGNED: 'Assinada',
+  DECLINED: 'Recusada pelo cliente',
+  EXPIRED: 'Prazo expirado',
+  CANCELLED: 'Cancelada',
+}
+
+export const SIGNATURE_STATUS_VARIANT: Record<
+  SignatureStatus,
+  StatusBadgeVariant
+> = {
+  PENDING: 'neutral',
+  SENT: 'info',
+  VIEWED: 'info',
+  SIGNED: 'success',
+  DECLINED: 'danger',
+  EXPIRED: 'danger',
   CANCELLED: 'neutral',
 }
 

@@ -262,6 +262,146 @@ Consequências:
 - `AuditLog`/`CreditRequestHistory` cobrem hoje apenas a entidade `CreditRequest`; um novo requisito de auditoria em outra entidade exige uma decisão própria (reaproveitando `recordAudit()`, que já é genérico o suficiente).
 - `CreditRequestStatus` mantém 3 valores (`SIGNATURE_PENDING`, `SIGNED`, `COMPLETED`) sem nenhuma transição que os alcance até a Fase 6 — isso é esperado, não um bug.
 
+## ADR-016 — StorageService em disco local (Fase 5)
+
+Status: ACEITO
+
+Problema:
+A spec 05 exige uma abstração `StorageService` para arquivo de documento
+("não armazenar arquivos grandes diretamente no PostgreSQL... local; S3;
+MinIO; Azure Blob"), sem definir qual implementação usar no MVP.
+
+Alternativas:
+- **S3/MinIO desde já**: mais próximo de produção, mas exige subir um serviço
+  novo no `docker-compose.yml` e credenciais de acesso sem nenhum requisito
+  concreto (volume esperado, retenção, backup) que justifique isso agora.
+- **Disco local** (dentro do container, via volume Docker nomeado): zero
+  infraestrutura nova, atende a regra "não armazenar no Postgres", e a
+  interface `StorageService` (`save`/`readStream`/`readBuffer`/`delete`) já
+  isola o resto do domínio do mecanismo — trocar por S3/MinIO depois é
+  reimplementar só esta classe.
+
+Trade-off:
+Disco local não escala horizontalmente (múltiplas réplicas do backend não
+compartilhariam o volume automaticamente) — aceitável para o estágio atual
+do projeto (um único container de backend), revisitar se/quando houver mais
+de uma réplica.
+
+Decisão:
+`StorageService` (`backend/src/storage/`) grava em `backend/storage/` dentro
+do container, persistido pelo volume nomeado `document_storage`
+(`docker-compose.yml`). Chave de arquivo: `<escopo>/<uuid>-<nome-sanitizado>`.
+
+Consequências:
+- `DocumentsService`/`SignaturesService` só conhecem a interface
+  (`save`/`readStream`/`readBuffer`/`delete`), nunca o caminho em disco
+  diretamente.
+- `backend/storage/` está no `.gitignore` — conteúdo nunca é versionado.
+
+## ADR-017 — Assinatura Clicksign implementa uma autorização de consulta SPC/Bacen anterior ao envio para o Gerente, não o contrato final pós-aprovação (Fase 6)
+
+Status: ACEITO
+
+Problema:
+A spec 03 original desenhou `SIGNATURE_PENDING`/`SIGNED`/`COMPLETED` como os
+3 últimos estados do workflow, alcançados só depois de `APPROVED` (contrato
+final assinado após a análise de crédito aprovar). Ao implementar a Fase 6,
+o usuário responsável pelo projeto esclareceu um requisito de negócio que
+nenhuma spec continha: o Consultor precisa de uma autorização assinada pelo
+cliente para consultar SPC/Bacen **antes** da análise (Gerente/Crédito)
+começar — sem ela a análise não tem como avaliar o risco de crédito.
+
+Alternativas:
+- **Reaproveitar `SIGNATURE_PENDING`/`SIGNED` para esta autorização**:
+  reutilizaria valores já existentes no enum, mas exigiria inserir esses
+  status ENTRE `DRAFT` e `SUBMITTED_TO_MANAGER` — quebrando a semântica que
+  a ADR-015 já registrou para eles (contrato final, pós-`APPROVED`) e
+  colidindo com uma Fase futura que ainda vai precisar desses mesmos valores
+  para o propósito original.
+- **Gate novo na transição `SUBMIT` (DRAFT/RETURNED_TO_CONSULTANT →
+  SUBMITTED_TO_MANAGER)**, no mesmo padrão que `requiresMinProperty` já usa:
+  não introduz nem reaproveita nenhum `CreditRequestStatus`, só passa a
+  exigir uma `SignatureRequest` com `status: SIGNED` antes de liberar o
+  envio pro Gerente.
+
+Trade-off:
+A segunda opção não dá visibilidade de "aguardando assinatura" no próprio
+`CreditRequestStatus` (a solicitação continua em `DRAFT` enquanto o cliente
+assina) — quem quiser saber o status da assinatura consulta
+`GET /credit-requests/:id/signature` separadamente. Isso é aceitável porque
+evita colidir com o significado já documentado (ADR-015) de
+`SIGNATURE_PENDING`/`SIGNED`, que continuam reservados e inalcançáveis até
+uma fase futura implementar o contrato final pós-aprovação.
+
+Decisão:
+Modelos novos `Document`/`SignatureRequest`/`SignatureEvent` (Fase 5/6, sem
+nenhum novo valor em `CreditRequestStatus`). `WorkflowService.transition`
+ganha a checagem `requiresSignedAuthorization` nas regras `SUBMIT` a partir
+de `DRAFT`/`RETURNED_TO_CONSULTANT`: exige uma `SignatureRequest` com
+`status: SIGNED` para esta `CreditRequest` antes de liberar o envio ao
+Gerente. Signatários do envelope Clicksign = `Client` + todos os `Partner`
+do cliente (dados já existentes no schema); o cônjuge (`Client.spouseName`)
+fica de fora por não ter email/documento cadastrado.
+
+Consequências:
+- `SIGNATURE_PENDING`/`SIGNED`/`COMPLETED` continuam exatamente como a
+  ADR-015 documentou: reservados, inalcançáveis, sem nenhuma transição —
+  isso é esperado, não uma lacuna desta fase.
+- Uma futura Fase de contrato final pós-`APPROVED` pode reaproveitar o mesmo
+  `SignaturesModule`/`ClicksignAdapter` (a integração é genérica), só
+  precisa da sua própria chamada a `requestSignature` e de transições novas
+  ligando `APPROVED`→`SIGNATURE_PENDING`→`SIGNED`→`COMPLETED`.
+- `DocumentsService`/`SignaturesService` reaproveitam
+  `CreditRequestsService.findOneForUser`/`assertEditable` (agora público em
+  vez de privado) em vez de duplicar a regra de visibilidade/edição.
+
+## ADR-018 — Envelope Clicksign carrega só o documento `AUTORIZACAO_SPC_BACEN`, não todo o checklist da Fase 5
+
+Status: ACEITO
+
+Problema:
+A primeira versão da Fase 6 enviava pro Clicksign **todos** os documentos já
+anexados à solicitação (`DocumentsService.listByCreditRequest` sem filtro).
+Ao testar, ficou claro que isso está errado: o cliente assina um termo de
+autorização específico (ele precisa poder ler exatamente o que está
+assinando), não o Imposto de Renda, CAR, Contrato Social etc. — esses são
+anexos de apoio à análise de crédito, sem relação com o que o cliente
+assina. Além disso a etapa "5 — Assinatura" do wizard não tinha nenhum campo
+pra anexar ou visualizar esse documento específico.
+
+Alternativas:
+- **Manter "todos os documentos anexados"**: simples, mas semanticamente
+  errado (o cliente assinaria um envelope com uma pilha de documentos que
+  não são dele pra assinar) e sem UI nenhuma pra escolher/ver o que será
+  enviado.
+- **Um novo `DocumentType.AUTORIZACAO_SPC_BACEN` dedicado**: o
+  `SignatureSection` (etapa 5) ganha seu próprio upload/preview/remoção
+  desse tipo específico, e `SignaturesService.requestSignature` filtra
+  `documents` por esse tipo antes de montar o envelope — sem essa forma
+  filtra e bloqueia a solicitação de assinatura.
+
+Trade-off:
+Mais um valor no enum `DocumentType` (migration nova) — custo baixo, mesmo
+padrão dos outros 10 valores já existentes.
+
+Decisão:
+Novo `DocumentType.AUTORIZACAO_SPC_BACEN`. `DocumentsSection` (checklist da
+Fase 5) exclui esse tipo da grade genérica; `SignatureSection` (etapa da
+Fase 6) tem seu próprio bloco de anexar/baixar/remover esse documento
+específico, e só habilita "Enviar para assinatura" quando ele existe.
+`SignaturesService.requestSignature` filtra `documents` por
+`type === 'AUTORIZACAO_SPC_BACEN'` e rejeita com `ConflictException` se
+nenhum existir.
+
+Consequências:
+- Se no futuro o termo precisar de mais de um arquivo (ex.: anexo
+  complementar), o filtro por tipo já suporta múltiplos documentos do mesmo
+  tipo sem mudança de schema.
+- O documento não pode ser trocado/removido enquanto a `SignatureRequest`
+  estiver num status aberto (`PENDING`/`SENT`/`VIEWED`) ou já `SIGNED` — só
+  nos estados "reenviáveis" (`DECLINED`/`EXPIRED`/`CANCELLED`), evitando
+  divergência entre o que o cliente assinou e o que fica salvo no sistema.
+
 ## Regra
 
 Novas decisões importantes devem ser registradas aqui.

@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "DocumentType" ADD VALUE 'AUTORIZACAO_SPC_BACEN';

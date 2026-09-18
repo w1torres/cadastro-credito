@@ -9,11 +9,14 @@ import { PartnersSection } from '../clients/PartnersSection'
 import { ReviewSection } from '../clients/ReviewSection'
 import { CreditRequestFieldsSection } from './CreditRequestFieldsSection'
 import { PropertiesSection } from '../properties/PropertiesSection'
+import { DocumentsSection } from '../documents/DocumentsSection'
+import { SignatureSection } from '../signatures/SignatureSection'
 import { clientsApi } from '../clients/clientsApi'
 import { partnersApi } from '../clients/partnersApi'
 import { propertiesApi } from '../properties/propertiesApi'
 import { productionApi } from '../properties/productionApi'
 import { creditRequestsApi } from './creditRequestsApi'
+import { useAuth } from '../auth/AuthContext'
 import {
   toCreatePropertyInput,
   toUpdatePropertyInput,
@@ -45,31 +48,29 @@ const STEPS: WizardStep[] = [
   { label: 'Dados do Cliente', fields: ['client', 'partners'] },
   { label: 'Solicitação de Crédito', fields: ['creditRequest'] },
   { label: 'Fazendas e Produção', fields: ['properties'] },
+  { label: 'Documentos e Anexos', fields: [] },
+  { label: 'Assinatura', fields: [] },
   { label: 'Revisão e Envio', fields: [] },
 ]
 
 export function EditClientRequestPage() {
   const { id } = useParams<{ id: string }>()
 
-  const { data: creditRequest, isLoading: isLoadingCreditRequest } = useQuery(
-    {
-      queryKey: ['credit-request', id],
-      queryFn: () => creditRequestsApi.get(id!),
-      enabled: Boolean(id),
-    },
-  )
+  const { data: creditRequest, isLoading: isLoadingCreditRequest } = useQuery({
+    queryKey: ['credit-request', id],
+    queryFn: () => creditRequestsApi.get(id!),
+    enabled: Boolean(id),
+  })
   const { data: client, isLoading: isLoadingClient } = useQuery({
     queryKey: ['client', creditRequest?.clientId],
     queryFn: () => clientsApi.get(creditRequest!.clientId),
     enabled: Boolean(creditRequest),
   })
-  const { data: propertiesResult, isLoading: isLoadingProperties } = useQuery(
-    {
-      queryKey: ['properties', creditRequest?.clientId],
-      queryFn: () => propertiesApi.listByClient(creditRequest!.clientId),
-      enabled: Boolean(creditRequest),
-    },
-  )
+  const { data: propertiesResult, isLoading: isLoadingProperties } = useQuery({
+    queryKey: ['properties', creditRequest?.clientId],
+    queryFn: () => propertiesApi.listByClient(creditRequest!.clientId),
+    enabled: Boolean(creditRequest),
+  })
 
   if (isLoadingCreditRequest || isLoadingClient || isLoadingProperties) {
     return <Spinner />
@@ -110,8 +111,15 @@ function EditWizard({
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { showSuccess, showError } = useToast()
+  const { user } = useAuth()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [step, setStep] = useState(0)
+
+  // Mesma regra de "quem pode editar" do resto do app (ver CreditRequestDetailPage):
+  // dono CONSULTOR ou ADMIN. Um GERENTE que abra esta URL (visível a ele por
+  // estar na mesma filial) só vê Documentos/Assinatura em modo leitura.
+  const canEditDocuments =
+    !!user && (user.role === 'ADMIN' || creditRequest.consultantId === user.id)
 
   const methods = useForm<EditClientRequestFormValues>({
     resolver: zodResolver(editClientRequestSchema),
@@ -164,10 +172,7 @@ function EditWizard({
       }
 
       const originalProductionsByProperty = new Map(
-        properties.map((property) => [
-          property.id,
-          property.productions ?? [],
-        ]),
+        properties.map((property) => [property.id, property.productions ?? []]),
       )
 
       for (const property of values.properties) {
@@ -187,7 +192,7 @@ function EditWizard({
         }
 
         const originalProductions = propertyId
-          ? originalProductionsByProperty.get(propertyId) ?? []
+          ? (originalProductionsByProperty.get(propertyId) ?? [])
           : []
         const originalProductionIds = new Set(
           originalProductions.map((production) => production.id),
@@ -302,7 +307,33 @@ function EditWizard({
             <Card>
               <CardHeader tone="brand">
                 <CardTitle className="text-white">
-                  4 — Revisão e Envio
+                  4 — Documentos e Anexos
+                </CardTitle>
+              </CardHeader>
+              <DocumentsSection
+                creditRequestId={creditRequestId}
+                canEdit={canEditDocuments}
+              />
+            </Card>
+          )}
+
+          {step === 4 && (
+            <Card>
+              <CardHeader tone="brand">
+                <CardTitle className="text-white">5 — Assinatura</CardTitle>
+              </CardHeader>
+              <SignatureSection
+                creditRequestId={creditRequestId}
+                canRequest={canEditDocuments}
+              />
+            </Card>
+          )}
+
+          {step === 5 && (
+            <Card>
+              <CardHeader tone="brand">
+                <CardTitle className="text-white">
+                  6 — Revisão e Envio
                 </CardTitle>
               </CardHeader>
               <ReviewSection confirmationHint='Confira os dados abaixo antes de salvar. Para corrigir algo, use o botão "Voltar".' />

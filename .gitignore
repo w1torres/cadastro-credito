@@ -22,6 +22,9 @@ backend/prisma/generated/
 backend/generated/
 **/generated/prisma/
 
+# Fase 5 — arquivos de documentos (StorageService, disco local — ver ADR-016)
+backend/storage/
+
 # Logs
 *.log
 npm-debug.log*

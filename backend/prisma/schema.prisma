@@ -60,6 +60,8 @@ model User {
   creditRequests         CreditRequest[]
   creditRequestHistories CreditRequestHistory[]
   auditLogs              AuditLog[]
+  uploadedDocuments      Document[]
+  requestedSignatures    SignatureRequest[]
 
   @@map("users")
   @@index([role])
@@ -194,7 +196,9 @@ model CreditRequest {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  histories CreditRequestHistory[]
+  histories         CreditRequestHistory[]
+  documents         Document[]
+  signatureRequests SignatureRequest[]
 
   @@map("credit_requests")
   @@index([status])
@@ -237,4 +241,92 @@ model AuditLog {
   @@index([entity, entityId])
   @@index([userId])
   @@index([createdAt])
+}
+
+/// Fase 5 (Documentos). Lista fechada e conhecida dos documentos do checklist
+/// do protótipo HTML — enum, não tabela, mesmo raciocínio da ADR-008 (Role).
+/// AUTORIZACAO_SPC_BACEN é o único tipo que a Fase 6 envia pro Clicksign
+/// (ver ADR-017/018) — os demais são só anexos de apoio à análise.
+enum DocumentType {
+  IMPOSTO_RENDA
+  DOCUMENTACAO_PESSOAL
+  COMPROVANTE_ENDERECO
+  CONTRATO_SOCIAL
+  CERTIDAO_ONUS_FAZENDA
+  CONTRATO_ARRENDAMENTO
+  DRE
+  CAR
+  DOCUMENTACAO_SOCIOS
+  AUTORIZACAO_SPC_BACEN
+  OUTROS
+}
+
+/// Metadata do arquivo — o conteúdo em si vive no StorageService (ADR-016),
+/// nunca no Postgres (spec 05).
+model Document {
+  id              String       @id @default(uuid())
+  creditRequestId String
+  creditRequest   CreditRequest @relation(fields: [creditRequestId], references: [id], onDelete: Cascade)
+  type            DocumentType
+  originalName    String
+  storageKey      String       @unique
+  mimeType        String
+  size            Int
+  uploadedById    String
+  uploadedBy      User         @relation(fields: [uploadedById], references: [id], onDelete: Restrict)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@map("documents")
+  @@index([creditRequestId])
+  @@index([type])
+}
+
+/// Fase 6 (Clicksign). Estados espelham o vocabulário genérico da spec 07 —
+/// ajustar se a integração real expuser nomes diferentes.
+enum SignatureStatus {
+  PENDING
+  SENT
+  VIEWED
+  SIGNED
+  DECLINED
+  EXPIRED
+  CANCELLED
+}
+
+/// Autorização de consulta SPC/Bacen assinada pelo cliente — disparada pelo
+/// Consultor logo após anexar os documentos, ainda em DRAFT (ver ADR-017).
+/// Não é o contrato final pós-aprovação que a spec 03 original previa para
+/// SIGNATURE_PENDING/SIGNED (esses continuam reservados para uma fase futura).
+model SignatureRequest {
+  id                  String          @id @default(uuid())
+  creditRequestId     String
+  creditRequest       CreditRequest   @relation(fields: [creditRequestId], references: [id], onDelete: Cascade)
+  clicksignEnvelopeId String          @unique
+  status              SignatureStatus @default(PENDING)
+  requestedById       String
+  requestedBy         User            @relation(fields: [requestedById], references: [id], onDelete: Restrict)
+  signedAt            DateTime?
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+
+  events SignatureEvent[]
+
+  @@map("signature_requests")
+  @@index([creditRequestId])
+}
+
+/// Idempotência + auditoria de webhook (spec 07: "idempotência", "registrar
+/// evento") — `clicksignEventId` único faz um evento repetido virar no-op.
+model SignatureEvent {
+  id                 String           @id @default(uuid())
+  signatureRequestId String
+  signatureRequest   SignatureRequest @relation(fields: [signatureRequestId], references: [id], onDelete: Cascade)
+  clicksignEventId   String           @unique
+  eventType          String
+  payload            Json
+  receivedAt         DateTime         @default(now())
+
+  @@map("signature_events")
+  @@index([signatureRequestId])
 }

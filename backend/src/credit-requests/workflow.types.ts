@@ -11,6 +11,12 @@ export interface TransitionRule {
   requiresOwnership?: boolean;
   requiresReason?: boolean;
   requiresMinProperty?: boolean;
+  /**
+   * Exige uma SignatureRequest com status SIGNED (autorização de consulta
+   * SPC/Bacen assinada pelo cliente via Clicksign, ver signatures/) antes de
+   * liberar a transição — Fase 6.
+   */
+  requiresSignedAuthorization?: boolean;
 }
 
 export interface TransitionInput {
@@ -48,6 +54,7 @@ export const TRANSITIONS: TransitionRule[] = [
     roles: [CONSULTOR],
     requiresOwnership: true,
     requiresMinProperty: true,
+    requiresSignedAuthorization: true,
   },
   {
     action: 'SUBMIT',
@@ -55,6 +62,7 @@ export const TRANSITIONS: TransitionRule[] = [
     to: SUBMITTED_TO_MANAGER,
     roles: [CONSULTOR],
     requiresOwnership: true,
+    requiresSignedAuthorization: true,
   },
   {
     action: 'SUBMIT',

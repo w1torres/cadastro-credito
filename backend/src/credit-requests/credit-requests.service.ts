@@ -179,7 +179,13 @@ export class CreditRequestsService {
     }
   }
 
-  private assertEditable(
+  /**
+   * Pública (não `private`) porque DocumentsService/SignaturesService (Fases
+   * 5/6) reaproveitam exatamente esta regra em vez de duplicá-la — "dono
+   * CONSULTOR ou ADMIN" é a mesma checagem para editar a solicitação, subir
+   * documento ou disparar assinatura.
+   */
+  assertEditable(
     creditRequest: Pick<CreditRequest, 'consultantId'>,
     user: AuthUser,
   ): void {

@@ -10,6 +10,8 @@ import { ClientsModule } from './clients/clients.module.js';
 import { PropertiesModule } from './properties/properties.module.js';
 import { CreditRequestsModule } from './credit-requests/credit-requests.module.js';
 import { BranchesModule } from './branches/branches.module.js';
+import { DocumentsModule } from './documents/documents.module.js';
+import { SignaturesModule } from './signatures/signatures.module.js';
 
 @Module({
   imports: [
@@ -25,6 +27,8 @@ import { BranchesModule } from './branches/branches.module.js';
     PropertiesModule,
     CreditRequestsModule,
     BranchesModule,
+    DocumentsModule,
+    SignaturesModule,
   ],
   controllers: [AppController],
   providers: [AppService],

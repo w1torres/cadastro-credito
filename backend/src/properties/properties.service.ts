@@ -36,7 +36,9 @@ export class PropertiesService {
     page: number,
     pageSize: number,
     clientId?: string,
-  ): Promise<PaginatedResult<Property & { productions: PropertyProduction[] }>> {
+  ): Promise<
+    PaginatedResult<Property & { productions: PropertyProduction[] }>
+  > {
     const where: Prisma.PropertyWhereInput = {
       ...(user.role === Role.CONSULTOR
         ? { client: { consultantId: user.id } }
