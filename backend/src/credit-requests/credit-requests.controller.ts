@@ -20,6 +20,8 @@ import { PaginationQueryDto } from '../common/dto/pagination-query.dto.js';
 import { CreditRequestsService } from './credit-requests.service.js';
 import { CreateCreditRequestDto } from './dto/create-credit-request.dto.js';
 import { UpdateCreditRequestDto } from './dto/update-credit-request.dto.js';
+import { SetDocumentPendenciesDto } from './dto/set-document-pendencies.dto.js';
+import { SetFichaCadastralDto } from './dto/set-ficha-cadastral.dto.js';
 
 class ListCreditRequestsQueryDto extends PaginationQueryDto {
   @IsOptional()
@@ -71,6 +73,26 @@ export class CreditRequestsController {
     @CurrentUser() user: AuthUser,
   ) {
     return this.creditRequestsService.update(id, dto, user);
+  }
+
+  @Roles(Role.GERENTE, Role.CREDITO, Role.ADMIN)
+  @Patch(':id/document-pendencies')
+  setDocumentPendencies(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: SetDocumentPendenciesDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.creditRequestsService.setDocumentPendencies(id, dto, user);
+  }
+
+  @Roles(Role.GERENTE, Role.CREDITO, Role.ADMIN)
+  @Patch(':id/ficha-cadastral')
+  setFichaCadastral(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: SetFichaCadastralDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.creditRequestsService.setFichaCadastral(id, dto, user);
   }
 
   @Roles(Role.CONSULTOR, Role.ADMIN)

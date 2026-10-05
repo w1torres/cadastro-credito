@@ -40,6 +40,7 @@ export function NewUserPage() {
       usersApi.create({
         ...values,
         branchId: values.branchId || undefined,
+        codigo: values.codigo || undefined,
       }),
     onSuccess: () => {
       showSuccess('Usuário criado com sucesso.')
@@ -61,7 +62,9 @@ export function NewUserPage() {
         <CardTitle className="text-white">Novo Usuário</CardTitle>
       </CardHeader>
       <form
-        onSubmit={(e) => void handleSubmit((values) => mutation.mutateAsync(values))(e)}
+        onSubmit={(e) =>
+          void handleSubmit((values) => mutation.mutateAsync(values))(e)
+        }
         className="flex flex-col gap-4"
         noValidate
       >
@@ -79,12 +82,10 @@ export function NewUserPage() {
           {...register('email')}
         />
         <InputField
-          label="Senha"
-          type="password"
-          required
-          hint="Mínimo de 8 caracteres."
-          error={errors.password?.message}
-          {...register('password')}
+          label="Código (SAP)"
+          placeholder="RC0202"
+          error={errors.codigo?.message}
+          {...register('codigo')}
         />
         <SelectField
           label="Perfil"
@@ -115,7 +116,11 @@ export function NewUserPage() {
           </SelectField>
         )}
         <div className="flex items-center justify-end gap-2">
-          <Button type="button" variant="secondary" onClick={() => navigate('/admin/users')}>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => navigate('/admin/users')}
+          >
             Cancelar
           </Button>
           <Button type="submit" isLoading={mutation.isPending}>

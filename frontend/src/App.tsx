@@ -25,8 +25,13 @@ function App() {
           <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<DashboardPage />} />
 
-          <Route element={<RequireRole roles={['CONSULTOR', 'ADMIN']} />}>
+          <Route
+            element={<RequireRole roles={['GERENTE', 'CREDITO', 'ADMIN']} />}
+          >
             <Route path="/clients" element={<ClientsListPage />} />
+          </Route>
+
+          <Route element={<RequireRole roles={['CONSULTOR', 'ADMIN']} />}>
             <Route path="/clients/new" element={<NewClientPage />} />
             <Route
               path="/clients/:clientId/properties/new"

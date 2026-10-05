@@ -1,4 +1,7 @@
 import type { CreditRequestStatus } from './credit-request-status'
+import type { DocumentType } from './document'
+
+export type FichaCadastralSituacao = 'EM_ANALISE' | 'APROVADA' | 'REPROVADA'
 
 export interface CreditRequest {
   id: string
@@ -20,6 +23,10 @@ export interface CreditRequest {
   newMachineryDescription: string | null
   otherActivity: boolean
   otherActivityDescription: string | null
+  fichaCadastralSituacao: FichaCadastralSituacao
+  fichaCadastralMotivo: string | null
+  fichaCadastralRevisadaEm: string | null
+  documentPendencies?: { type: DocumentType; motivo: 'FALTANTE' | 'ERRADO' }[]
   createdAt: string
   updatedAt: string
   consultant?: {

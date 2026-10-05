@@ -48,7 +48,9 @@ model User {
   id           String   @id @default(uuid())
   name         String
   email        String   @unique
-  passwordHash String
+  passwordHash String?
+  /// Código do vendedor/gerente no SAP (ex.: RC0202, GE0101). Não é único: a lista tem códigos repetidos.
+  codigo       String?
   role         Role     @default(CONSULTOR)
   isActive     Boolean  @default(true)
   branchId     String?
@@ -62,10 +64,12 @@ model User {
   auditLogs              AuditLog[]
   uploadedDocuments      Document[]
   requestedSignatures    SignatureRequest[]
+  documentPendenciesMarked DocumentPendency[]
 
   @@map("users")
   @@index([role])
   @@index([branchId])
+  @@index([codigo])
 }
 
 /// Filial: escopo de visibilidade para CONSULTOR/GERENTE — cada um pertence a
@@ -200,6 +204,13 @@ model CreditRequest {
   documents         Document[]
   signatureRequests SignatureRequest[]
 
+  /// Situação da ficha cadastral, definida por GERENTE/CREDITO na análise.
+  /// Bloqueia o envio do GERENTE para o CREDITO enquanto não for APROVADA.
+  fichaCadastralSituacao      FichaCadastralSituacao @default(EM_ANALISE)
+  fichaCadastralMotivo        String?                @db.Text
+  fichaCadastralRevisadaEm    DateTime?
+  documentPendencies          DocumentPendency[]
+
   @@map("credit_requests")
   @@index([status])
   @@index([clientId])
@@ -284,6 +295,36 @@ model Document {
 
 /// Fase 6 (Clicksign). Estados espelham o vocabulário genérico da spec 07 —
 /// ajustar se a integração real expuser nomes diferentes.
+enum FichaCadastralSituacao {
+  EM_ANALISE
+  APROVADA
+  REPROVADA
+}
+
+/// Documento marcado como pendente pelo GERENTE/CREDITO. Existe a linha
+/// enquanto o documento estiver pendente; ao resolver, a linha é removida e
+/// a mudança fica registrada em AuditLog.
+enum DocumentPendencyMotivo {
+  FALTANTE
+  ERRADO
+}
+
+model DocumentPendency {
+  id              String       @id @default(uuid())
+  creditRequestId String
+  creditRequest   CreditRequest @relation(fields: [creditRequestId], references: [id], onDelete: Cascade)
+  type            DocumentType
+  /// FALTANTE: o documento não foi anexado. ERRADO: anexado, mas incorreto.
+  motivo          DocumentPendencyMotivo @default(FALTANTE)
+  markedById      String
+  markedBy        User         @relation(fields: [markedById], references: [id], onDelete: Restrict)
+  createdAt       DateTime     @default(now())
+
+  @@unique([creditRequestId, type])
+  @@map("document_pendencies")
+  @@index([creditRequestId])
+}
+
 enum SignatureStatus {
   PENDING
   SENT

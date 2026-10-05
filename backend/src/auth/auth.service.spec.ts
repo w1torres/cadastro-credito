@@ -1,17 +1,20 @@
 import { Test } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import * as bcrypt from 'bcrypt';
 import { vi } from 'vitest';
+import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import { AuthService } from './auth.service.js';
+import { verifyEntraIdToken } from './entra-token.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+
+vi.mock('./entra-token.js', () => ({ verifyEntraIdToken: vi.fn() }));
 
 describe('AuthService', () => {
   let service: AuthService;
-  let prisma: { user: { findUnique: ReturnType<typeof vi.fn> } };
+  let prisma: { user: { findUnique: ReturnType<typeof vi.fn>; findFirst: ReturnType<typeof vi.fn> } };
 
   beforeEach(async () => {
-    prisma = { user: { findUnique: vi.fn() } };
+    prisma = { user: { findUnique: vi.fn(), findFirst: vi.fn() } };
 
     const moduleRef = await Test.createTestingModule({
       providers: [
@@ -37,69 +40,85 @@ describe('AuthService', () => {
     service = moduleRef.get(AuthService);
   });
 
-  describe('validateCredentials', () => {
-    it('returns the auth user when the password matches', async () => {
-      const passwordHash = await bcrypt.hash('Senha@123', 4);
-      prisma.user.findUnique.mockResolvedValue({
-        id: 'user-1',
-        name: 'Fulano',
-        email: 'fulano@example.com',
-        role: 'CONSULTOR',
-        isActive: true,
-        passwordHash,
-      });
+  describe('validateEntraToken', () => {
+    const usuario = {
+      id: 'user-1',
+      name: 'Fulano',
+      email: 'fulano@example.com',
+      role: 'CONSULTOR',
+      branchId: 'branch-1',
+      isActive: true,
+    };
 
-      const result = await service.validateCredentials(
-        'fulano@example.com',
-        'Senha@123',
-      );
+    it('returns the auth user for a valid Microsoft token of a registered active user', async () => {
+      vi.mocked(verifyEntraIdToken).mockResolvedValue({ email: 'Fulano@Example.com' });
+      prisma.user.findFirst.mockResolvedValue(usuario);
+
+      const result = await service.validateEntraToken('token-valido-123');
 
       expect(result).toEqual({
         id: 'user-1',
         name: 'Fulano',
         email: 'fulano@example.com',
         role: 'CONSULTOR',
+        branchId: 'branch-1',
+      });
+      expect(prisma.user.findFirst).toHaveBeenCalledWith({
+        where: { email: { equals: 'fulano@example.com', mode: 'insensitive' } },
       });
     });
 
-    it('rejects when the password does not match', async () => {
-      const passwordHash = await bcrypt.hash('Senha@123', 4);
-      prisma.user.findUnique.mockResolvedValue({
-        id: 'user-1',
-        name: 'Fulano',
-        email: 'fulano@example.com',
-        role: 'CONSULTOR',
-        isActive: true,
-        passwordHash,
-      });
+    it('falls back to preferred_username when email is missing from the claims', async () => {
+      vi.mocked(verifyEntraIdToken).mockResolvedValue({ preferred_username: 'fulano@example.com' });
+      prisma.user.findFirst.mockResolvedValue(usuario);
 
-      await expect(
-        service.validateCredentials('fulano@example.com', 'senha-errada'),
-      ).rejects.toThrow('Credenciais inválidas.');
+      await expect(service.validateEntraToken('token-valido-123')).resolves.toMatchObject({ id: 'user-1' });
     });
 
-    it('rejects when the user does not exist', async () => {
-      prisma.user.findUnique.mockResolvedValue(null);
+    it('rejects an invalid or expired Microsoft token', async () => {
+      vi.mocked(verifyEntraIdToken).mockRejectedValue(new Error('signature invalid'));
 
-      await expect(
-        service.validateCredentials('ninguem@example.com', 'Senha@123'),
-      ).rejects.toThrow('Credenciais inválidas.');
+      await expect(service.validateEntraToken('token-ruim-123')).rejects.toBeInstanceOf(UnauthorizedException);
     });
 
-    it('rejects when the user is inactive', async () => {
-      const passwordHash = await bcrypt.hash('Senha@123', 4);
-      prisma.user.findUnique.mockResolvedValue({
-        id: 'user-1',
-        name: 'Fulano',
-        email: 'fulano@example.com',
-        role: 'CONSULTOR',
-        isActive: false,
-        passwordHash,
-      });
+    it('rejects a user who was not registered by the administrator', async () => {
+      vi.mocked(verifyEntraIdToken).mockResolvedValue({ email: 'ninguem@example.com' });
+      prisma.user.findFirst.mockResolvedValue(null);
 
-      await expect(
-        service.validateCredentials('fulano@example.com', 'Senha@123'),
-      ).rejects.toThrow('Credenciais inválidas.');
+      await expect(service.validateEntraToken('token-valido-123')).rejects.toBeInstanceOf(UnauthorizedException);
+    });
+
+    it('rejects an inactive user', async () => {
+      vi.mocked(verifyEntraIdToken).mockResolvedValue({ email: 'fulano@example.com' });
+      prisma.user.findFirst.mockResolvedValue({ ...usuario, isActive: false });
+
+      await expect(service.validateEntraToken('token-valido-123')).rejects.toBeInstanceOf(UnauthorizedException);
+    });
+  });
+
+  describe('devLogin', () => {
+    it('rejects when AUTH_DEV_LOGIN is not enabled', async () => {
+      const semFlag = await Test.createTestingModule({
+        providers: [
+          AuthService,
+          { provide: PrismaService, useValue: prisma },
+          { provide: JwtService, useValue: { signAsync: vi.fn(), verifyAsync: vi.fn() } },
+          {
+            provide: ConfigService,
+            useValue: { getOrThrow: (key: string) => `value-for-${key}`, get: () => undefined },
+          },
+        ],
+      }).compile();
+
+      await expect(semFlag.get(AuthService).devLogin('fulano@example.com')).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
+    });
+  });
+
+  describe('listarUsuariosDeTeste', () => {
+    it('rejects when AUTH_DEV_LOGIN is not enabled', async () => {
+      await expect(service.listarUsuariosDeTeste()).rejects.toBeInstanceOf(ForbiddenException);
     });
   });
 

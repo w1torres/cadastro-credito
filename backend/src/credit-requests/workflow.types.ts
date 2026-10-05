@@ -1,4 +1,9 @@
-import { CreditRequestStatus, Role } from '@prisma/client';
+import {
+  CreditRequestStatus,
+  DocumentPendencyMotivo,
+  DocumentType,
+  Role,
+} from '@prisma/client';
 
 export type WorkflowAction =
   'SUBMIT' | 'RETURN' | 'APPROVE' | 'REJECT' | 'CANCEL';
@@ -17,12 +22,19 @@ export interface TransitionRule {
    * liberar a transição — Fase 6.
    */
   requiresSignedAuthorization?: boolean;
+  /**
+   * Exige ficha cadastral APROVADA e nenhum documento pendente marcado pelo
+   * GERENTE/CREDITO antes de enviar a solicitação ao CREDITO.
+   */
+  requiresFichaAprovadaSemPendencias?: boolean;
 }
 
 export interface TransitionInput {
   expectedUpdatedAt: string;
   reason?: string;
   targetStatus?: CreditRequestStatus;
+  /** Só usado na devolução: substitui as pendências de documento da solicitação. */
+  pendencias?: { type: DocumentType; motivo: DocumentPendencyMotivo }[];
 }
 
 const {
@@ -75,6 +87,7 @@ export const TRANSITIONS: TransitionRule[] = [
     from: MANAGER_REVIEW,
     to: SUBMITTED_TO_CREDIT,
     roles: [GERENTE],
+    requiresFichaAprovadaSemPendencias: true,
   },
   {
     action: 'SUBMIT',
@@ -100,13 +113,6 @@ export const TRANSITIONS: TransitionRule[] = [
     action: 'RETURN',
     from: CREDIT_REVIEW,
     to: RETURNED_TO_MANAGER,
-    roles: [CREDITO],
-    requiresReason: true,
-  },
-  {
-    action: 'RETURN',
-    from: CREDIT_REVIEW,
-    to: RETURNED_TO_CONSULTANT,
     roles: [CREDITO],
     requiresReason: true,
   },

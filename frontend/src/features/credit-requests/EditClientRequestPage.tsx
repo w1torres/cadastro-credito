@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { FormProvider, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -110,10 +110,19 @@ function EditWizard({
 }) {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  // ?etapa=N abre a edição já na etapa indicada (ex.: vindo da nova solicitação, etapa 4).
+  const [searchParams] = useSearchParams()
+  const etapaSolicitada = Number(searchParams.get('etapa'))
+  const etapaInicial =
+    Number.isInteger(etapaSolicitada) &&
+    etapaSolicitada >= 0 &&
+    etapaSolicitada < STEPS.length
+      ? etapaSolicitada
+      : 0
   const { showSuccess, showError } = useToast()
   const { user } = useAuth()
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [step, setStep] = useState(0)
+  const [step, setStep] = useState(etapaInicial)
 
   // Mesma regra de "quem pode editar" do resto do app (ver CreditRequestDetailPage):
   // dono CONSULTOR ou ADMIN. Um GERENTE que abra esta URL (visível a ele por

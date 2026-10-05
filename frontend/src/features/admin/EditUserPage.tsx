@@ -9,7 +9,11 @@ import { useToast } from '../../components/ui/Toast'
 import { Card, CardHeader, CardTitle } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { Spinner } from '../../components/ui/Spinner'
-import { InputField, SelectField, CheckboxField } from '../../components/ui/Field'
+import {
+  InputField,
+  SelectField,
+  CheckboxField,
+} from '../../components/ui/Field'
 import { ROLES } from '../../types/role'
 import { ROLE_LABELS } from '../../lib/labels'
 import { updateUserSchema } from '../../schemas/user.schema'
@@ -70,6 +74,7 @@ function EditUserForm({ id, user, branches, onDone }: EditUserFormProps) {
     defaultValues: {
       name: user.name,
       email: user.email,
+      codigo: user.codigo ?? '',
       role: user.role,
       isActive: user.isActive,
       branchId: user.branchId ?? '',
@@ -83,6 +88,7 @@ function EditUserForm({ id, user, branches, onDone }: EditUserFormProps) {
       usersApi.update(id!, {
         ...values,
         branchId: values.branchId || undefined,
+        codigo: values.codigo || undefined,
       }),
     onSuccess: () => {
       showSuccess('Usuário atualizado com sucesso.')
@@ -101,7 +107,9 @@ function EditUserForm({ id, user, branches, onDone }: EditUserFormProps) {
 
   return (
     <form
-      onSubmit={(e) => void handleSubmit((values) => mutation.mutateAsync(values))(e)}
+      onSubmit={(e) =>
+        void handleSubmit((values) => mutation.mutateAsync(values))(e)
+      }
       className="flex flex-col gap-4"
       noValidate
     >
@@ -117,6 +125,12 @@ function EditUserForm({ id, user, branches, onDone }: EditUserFormProps) {
         required
         error={errors.email?.message}
         {...register('email')}
+      />
+      <InputField
+        label="Código (SAP)"
+        placeholder="RC0202"
+        error={errors.codigo?.message}
+        {...register('codigo')}
       />
       <SelectField
         label="Perfil"

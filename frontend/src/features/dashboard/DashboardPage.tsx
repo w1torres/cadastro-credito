@@ -1,3 +1,4 @@
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Plus } from 'lucide-react'
@@ -32,8 +33,75 @@ export function DashboardPage() {
   })
 
   const statuses = user ? QUEUE_STATUSES[user.role] : undefined
-  const creditRequests =
-    data?.data.filter((cr) => !statuses || statuses.includes(cr.status)) ?? []
+  const filaBase = useMemo(
+    () =>
+      data?.data.filter((cr) => !statuses || statuses.includes(cr.status)) ??
+      [],
+    [data, statuses],
+  )
+
+  // Filtros da fila (crédito e gerente). '' = todos.
+  const [filialFiltro, setFilialFiltro] = useState('')
+  const [consultorFiltro, setConsultorFiltro] = useState('')
+  const [statusFiltro, setStatusFiltro] = useState('')
+  const isGestor = user?.role === 'CREDITO' || user?.role === 'GERENTE'
+
+  const filiaisDisponiveis = useMemo(() => {
+    const nomes = new Set<string>()
+    filaBase.forEach((cr) => {
+      if (cr.consultant?.branch?.name) nomes.add(cr.consultant.branch.name)
+    })
+    return [...nomes].sort((a, b) => a.localeCompare(b, 'pt-BR'))
+  }, [filaBase])
+
+  const consultoresDisponiveis = useMemo(() => {
+    const mapa = new Map<
+      string,
+      { id: string; name: string; branch: string | null }
+    >()
+    filaBase.forEach((cr) => {
+      const id = cr.consultant?.id ?? cr.consultantId
+      if (!mapa.has(id)) {
+        mapa.set(id, {
+          id,
+          name: cr.consultant?.name ?? 'Consultor',
+          branch: cr.consultant?.branch?.name ?? null,
+        })
+      }
+    })
+    return [...mapa.values()]
+      .filter((c) => !filialFiltro || c.branch === filialFiltro)
+      .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
+  }, [filaBase, filialFiltro])
+
+  const statusesDisponiveis = useMemo(
+    () => [...new Set(filaBase.map((cr) => cr.status))],
+    [filaBase],
+  )
+
+  const creditRequests = useMemo(
+    () =>
+      filaBase.filter((cr) => {
+        const branch = cr.consultant?.branch?.name ?? null
+        if (filialFiltro && branch !== filialFiltro) return false
+        if (
+          consultorFiltro &&
+          (cr.consultant?.id ?? cr.consultantId) !== consultorFiltro
+        )
+          return false
+        if (statusFiltro && cr.status !== statusFiltro) return false
+        return true
+      }),
+    [filaBase, filialFiltro, consultorFiltro, statusFiltro],
+  )
+
+  // Se o consultor escolhido não pertence mais à filial selecionada, limpa a escolha.
+  const consultorValido = consultoresDisponiveis.some(
+    (c) => c.id === consultorFiltro,
+  )
+  if (consultorFiltro && !consultorValido) {
+    setConsultorFiltro('')
+  }
 
   const title =
     user?.role === 'CONSULTOR' ? 'Minhas Solicitações' : 'Fila de Análise'
@@ -41,7 +109,8 @@ export function DashboardPage() {
   // GERENTE nunca vê o valor solicitado — some a coluna inteira em vez de
   // deixar um traço em toda linha. Para o CONSULTOR varia por linha (some só
   // depois do envio), então a coluna fica e cada célula decide por status.
-  const showValueColumn = user?.role !== 'GERENTE'
+  // CONSULTOR também não vê o valor na lista: a visão dele mostra só o status (pendências/ficha) e a data.
+  const showValueColumn = user?.role !== 'GERENTE' && user?.role !== 'CONSULTOR'
   // GERENTE só enxerga a própria filial (o backend já filtra), então basta
   // agrupar por consultor. CRÉDITO enxerga todas as filiais, então agrupa
   // primeiro por filial e depois por consultor dentro dela.
@@ -62,6 +131,64 @@ export function DashboardPage() {
           </Link>
         )}
       </CardHeader>
+
+      {isGestor && (
+        <div className="flex flex-wrap items-end gap-3 border-b border-slate-200 p-4">
+          {user?.role === 'CREDITO' && (
+            <label className="flex flex-col gap-1 text-sm">
+              <span className="text-slate-600">Filial</span>
+              <select
+                value={filialFiltro}
+                onChange={(e) => {
+                  setFilialFiltro(e.target.value)
+                  setConsultorFiltro('')
+                }}
+                className="rounded-md border border-slate-300 bg-white px-3 py-2"
+              >
+                <option value="">Todas as filiais</option>
+                {filiaisDisponiveis.map((nome) => (
+                  <option key={nome} value={nome}>
+                    {nome}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="text-slate-600">Consultor</span>
+            <select
+              value={consultorFiltro}
+              onChange={(e) => setConsultorFiltro(e.target.value)}
+              className="rounded-md border border-slate-300 bg-white px-3 py-2"
+            >
+              <option value="">Todos os consultores</option>
+              {consultoresDisponiveis.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="text-slate-600">Status</span>
+            <select
+              value={statusFiltro}
+              onChange={(e) => setStatusFiltro(e.target.value)}
+              className="rounded-md border border-slate-300 bg-white px-3 py-2"
+            >
+              <option value="">Todos os status</option>
+              {statusesDisponiveis.map((status) => (
+                <option key={status} value={status}>
+                  {CREDIT_REQUEST_STATUS_LABELS[status]}
+                </option>
+              ))}
+            </select>
+          </label>
+          <span className="text-sm text-slate-500">
+            {creditRequests.length} de {filaBase.length} solicitações
+          </span>
+        </div>
+      )}
 
       {isLoading ? (
         <Spinner />
@@ -84,7 +211,7 @@ export function DashboardPage() {
         <CreditRequestsTable
           creditRequests={creditRequests}
           showValueColumn={showValueColumn}
-          hideValueForConsultorInProgress={user?.role === 'CONSULTOR'}
+          isConsultor={user?.role === 'CONSULTOR'}
         />
       )}
     </Card>
@@ -106,7 +233,8 @@ function ConsultantGroupedView({
   >()
 
   for (const creditRequest of creditRequests) {
-    const consultantId = creditRequest.consultant?.id ?? creditRequest.consultantId
+    const consultantId =
+      creditRequest.consultant?.id ?? creditRequest.consultantId
     const existing = byConsultant.get(consultantId)
     if (existing) {
       existing.requests.push(creditRequest)
@@ -142,7 +270,10 @@ function ConsultantGroupedView({
   for (const [consultantId, group] of byConsultant) {
     const branchName = group.branchName ?? 'Sem filial'
     const branchGroup = byBranch.get(branchName) ?? new Map()
-    branchGroup.set(consultantId, { name: group.name, requests: group.requests })
+    branchGroup.set(consultantId, {
+      name: group.name,
+      requests: group.requests,
+    })
     byBranch.set(branchName, branchGroup)
   }
 
@@ -200,11 +331,11 @@ function ConsultantCard({
 function CreditRequestsTable({
   creditRequests,
   showValueColumn,
-  hideValueForConsultorInProgress = false,
+  isConsultor = false,
 }: {
   creditRequests: CreditRequest[]
   showValueColumn: boolean
-  hideValueForConsultorInProgress?: boolean
+  isConsultor?: boolean
 }) {
   return (
     <div className="overflow-x-auto">
@@ -227,18 +358,21 @@ function CreditRequestsTable({
             >
               {showValueColumn && (
                 <td className="py-2 text-slate-900">
-                  {hideValueForConsultorInProgress &&
-                  creditRequest.status !== 'DRAFT'
-                    ? '—'
-                    : formatCurrency(creditRequest.requestedCreditLimit)}
+                  {formatCurrency(creditRequest.requestedCreditLimit)}
                 </td>
               )}
               <td className="py-2">
-                <Badge
-                  variant={CREDIT_REQUEST_STATUS_VARIANT[creditRequest.status]}
-                >
-                  {CREDIT_REQUEST_STATUS_LABELS[creditRequest.status]}
-                </Badge>
+                {isConsultor ? (
+                  <ConsultorStatusBadges creditRequest={creditRequest} />
+                ) : (
+                  <Badge
+                    variant={
+                      CREDIT_REQUEST_STATUS_VARIANT[creditRequest.status]
+                    }
+                  >
+                    {CREDIT_REQUEST_STATUS_LABELS[creditRequest.status]}
+                  </Badge>
+                )}
               </td>
               <td className="py-2 text-slate-600">
                 {formatDateTime(creditRequest.createdAt)}
@@ -255,6 +389,34 @@ function CreditRequestsTable({
           ))}
         </tbody>
       </table>
+    </div>
+  )
+}
+
+/**
+ * Visão do CONSULTOR: o status se resume às duas situações que importam para ele.
+ * Sem nenhuma delas, a célula fica em branco ("—").
+ */
+function ConsultorStatusBadges({
+  creditRequest,
+}: {
+  creditRequest: CreditRequest
+}) {
+  const temPendencia = (creditRequest.documentPendencies?.length ?? 0) > 0
+  const fichaAprovada = creditRequest.fichaCadastralSituacao === 'APROVADA'
+
+  if (!temPendencia && !fichaAprovada) {
+    return <span className="text-slate-400">—</span>
+  }
+
+  return (
+    <div className="flex flex-wrap gap-1">
+      {temPendencia && (
+        <Badge variant="warning">Pendência de documentação</Badge>
+      )}
+      {fichaAprovada && (
+        <Badge variant="success">Ficha cadastral aprovada</Badge>
+      )}
     </div>
   )
 }

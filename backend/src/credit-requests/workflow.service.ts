@@ -5,7 +5,15 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { CreditRequest, CreditRequestHistory, Role } from '@prisma/client';
+import {
+  CreditRequest,
+  CreditRequestHistory,
+  DocumentPendencyMotivo,
+  DocumentType,
+  Prisma,
+  Role,
+} from '@prisma/client';
+import { DOCUMENT_CHECKLIST_TYPES } from './constants.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { recordAudit } from '../common/audit/record-audit.util.js';
 import type { AuthUser } from '../auth/types/auth-user.type.js';
@@ -77,6 +85,22 @@ export class WorkflowService {
       }
     }
 
+    if (rule.requiresFichaAprovadaSemPendencias) {
+      const pendencias = await this.prisma.documentPendency.count({
+        where: { creditRequestId: id },
+      });
+      if (pendencias > 0) {
+        throw new ConflictException(
+          'Há documentos pendentes marcados pelo gerente. Resolva as pendências antes de enviar ao crédito.',
+        );
+      }
+      if (creditRequest.fichaCadastralSituacao !== 'APROVADA') {
+        throw new ConflictException(
+          'A ficha cadastral precisa estar aprovada antes de enviar a solicitação ao crédito.',
+        );
+      }
+    }
+
     return this.prisma.$transaction(async (tx) => {
       const updated = await tx.creditRequest.update({
         where: { id },
@@ -91,6 +115,9 @@ export class WorkflowService {
           reason: input.reason?.trim() || null,
         },
       });
+      if (action === 'RETURN' && input.pendencias) {
+        await this.substituirPendencias(tx, id, input.pendencias, user.id);
+      }
       await recordAudit(tx, {
         userId: user.id,
         action: 'CREDIT_REQUEST_TRANSITION',
@@ -99,6 +126,44 @@ export class WorkflowService {
         metadata: { action, fromStatus: rule.from, toStatus: rule.to },
       });
       return updated;
+    });
+  }
+
+  /**
+   * Substitui as pendências de documento pela lista informada na devolução.
+   * Lista vazia remove todas. Roda dentro da mesma transação da transição.
+   */
+  private async substituirPendencias(
+    tx: Prisma.TransactionClient,
+    creditRequestId: string,
+    pendencias: { type: DocumentType; motivo: DocumentPendencyMotivo }[],
+    actorId: string,
+  ): Promise<void> {
+    const tipos = pendencias.map((item) => item.type);
+    if (new Set(tipos).size !== tipos.length) {
+      throw new BadRequestException('Documento informado mais de uma vez na devolução.');
+    }
+    if (!tipos.every((tipo) => DOCUMENT_CHECKLIST_TYPES.includes(tipo))) {
+      throw new BadRequestException('Documento fora do checklist de pendências.');
+    }
+
+    await tx.documentPendency.deleteMany({ where: { creditRequestId } });
+    if (pendencias.length > 0) {
+      await tx.documentPendency.createMany({
+        data: pendencias.map((item) => ({
+          creditRequestId,
+          type: item.type,
+          motivo: item.motivo,
+          markedById: actorId,
+        })),
+      });
+    }
+    await recordAudit(tx, {
+      userId: actorId,
+      action: 'DOCUMENT_PENDENCIES_RETURNED',
+      entity: 'CreditRequest',
+      entityId: creditRequestId,
+      metadata: { pendencias },
     });
   }
 

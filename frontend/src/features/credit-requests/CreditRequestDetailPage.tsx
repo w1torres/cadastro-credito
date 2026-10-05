@@ -4,6 +4,13 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { creditRequestsApi } from './creditRequestsApi'
+import { ChecklistAnalise } from '../documents/ChecklistAnalise'
+import type { DocumentPendencyMotivo } from '../../lib/document-checklist'
+import type { DocumentType } from '../../types/document'
+import {
+  PendenciasConsultorCard,
+  RevisaoDocumentosCard,
+} from './PendenciasDocumentosCard'
 import { clientsApi } from '../clients/clientsApi'
 import { propertiesApi } from '../properties/propertiesApi'
 import { useAuth } from '../auth/AuthContext'
@@ -47,6 +54,17 @@ const TERMINAL_STATUSES = [
   'COMPLETED',
 ]
 const RETURNED_STATUSES = ['RETURNED_TO_CONSULTANT', 'RETURNED_TO_MANAGER']
+const REVIEW_STATUSES_GERENTE = [
+  'SUBMITTED_TO_MANAGER',
+  'MANAGER_REVIEW',
+  'RETURNED_TO_MANAGER',
+]
+const REVIEW_STATUSES_CREDITO = ['SUBMITTED_TO_CREDIT', 'CREDIT_REVIEW']
+
+interface PendenciaDevolucao {
+  type: DocumentType
+  motivo: DocumentPendencyMotivo
+}
 
 export function CreditRequestDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -119,9 +137,16 @@ export function CreditRequestDetailPage() {
     onError,
   })
   const returnMutation = useMutation({
-    mutationFn: (values: ReturnFormValues) =>
+    mutationFn: ({
+      values,
+      pendencias,
+    }: {
+      values: ReturnFormValues
+      pendencias: PendenciaDevolucao[]
+    }) =>
       creditRequestsApi.return(id!, {
         ...values,
+        pendencias,
         expectedUpdatedAt: creditRequest!.updatedAt,
       }),
     onSuccess: () => onActionSuccess('Solicitação devolvida.'),
@@ -165,6 +190,21 @@ export function CreditRequestDetailPage() {
     user.role === 'GERENTE' ||
     (user.role === 'CONSULTOR' && creditRequest.status !== 'DRAFT')
   const isFinalized = TERMINAL_STATUSES.includes(creditRequest.status)
+  const isConsultor = user.role === 'CONSULTOR'
+  // Quem revisa documentos/ficha: GERENTE na análise dele, CREDITO na de crédito, ADMIN sempre.
+  const podeRevisar =
+    user.role === 'ADMIN' ||
+    (user.role === 'GERENTE' &&
+      REVIEW_STATUSES_GERENTE.includes(creditRequest.status)) ||
+    (user.role === 'CREDITO' &&
+      REVIEW_STATUSES_CREDITO.includes(creditRequest.status))
+  // Envio do gerente para o crédito fica bloqueado com pendência ou ficha não aprovada.
+  const pendenciasAbertas = creditRequest.documentPendencies?.length ?? 0
+  const bloqueioEnvioCredito =
+    user.role === 'GERENTE' &&
+    creditRequest.status === 'MANAGER_REVIEW' &&
+    (pendenciasAbertas > 0 ||
+      creditRequest.fichaCadastralSituacao !== 'APROVADA')
   const lastReturn = history
     ?.filter((entry) => RETURNED_STATUSES.includes(entry.toStatus))
     .at(-1)
@@ -186,9 +226,13 @@ export function CreditRequestDetailPage() {
       <Card>
         <CardHeader tone="brand">
           <CardTitle className="text-white">Solicitação de Crédito</CardTitle>
-          <Badge variant={CREDIT_REQUEST_STATUS_VARIANT[creditRequest.status]}>
-            {CREDIT_REQUEST_STATUS_LABELS[creditRequest.status]}
-          </Badge>
+          {!isConsultor && (
+            <Badge
+              variant={CREDIT_REQUEST_STATUS_VARIANT[creditRequest.status]}
+            >
+              {CREDIT_REQUEST_STATUS_LABELS[creditRequest.status]}
+            </Badge>
+          )}
         </CardHeader>
 
         <dl className="grid gap-4 text-sm sm:grid-cols-2">
@@ -289,13 +333,23 @@ export function CreditRequestDetailPage() {
               type="button"
               size="sm"
               variant={option.variant}
+              disabled={option.action === 'SUBMIT' && bloqueioEnvioCredito}
               onClick={() => handleAction(option)}
             >
               {option.label}
             </Button>
           ))}
         </div>
+        {bloqueioEnvioCredito && (
+          <p className="mt-2 text-xs text-amber-700">
+            Para enviar ao crédito, resolva os documentos pendentes e aprove a
+            ficha cadastral.
+          </p>
+        )}
       </Card>
+
+      {isConsultor && <PendenciasConsultorCard creditRequest={creditRequest} />}
+      {podeRevisar && <RevisaoDocumentosCard creditRequest={creditRequest} />}
 
       {client && (
         <Card>
@@ -457,36 +511,40 @@ export function CreditRequestDetailPage() {
         </Card>
       )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Histórico</CardTitle>
-        </CardHeader>
-        {!history || history.length === 0 ? (
-          <EmptyState title="Sem histórico" />
-        ) : (
-          <ul className="flex flex-col gap-3 text-sm">
-            {history.map((entry) => (
-              <li
-                key={entry.id}
-                className="border-b border-slate-100 pb-2 last:border-0"
-              >
-                <p className="text-slate-900">
-                  {entry.fromStatus
-                    ? CREDIT_REQUEST_STATUS_LABELS[entry.fromStatus]
-                    : 'Criada'}{' '}
-                  → {CREDIT_REQUEST_STATUS_LABELS[entry.toStatus]}
-                </p>
-                <p className="text-xs text-slate-500">
-                  {formatDateTime(entry.createdAt)}
-                </p>
-                {entry.reason && (
-                  <p className="mt-1 text-slate-600">Motivo: {entry.reason}</p>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-      </Card>
+      {!isConsultor && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Histórico</CardTitle>
+          </CardHeader>
+          {!history || history.length === 0 ? (
+            <EmptyState title="Sem histórico" />
+          ) : (
+            <ul className="flex flex-col gap-3 text-sm">
+              {history.map((entry) => (
+                <li
+                  key={entry.id}
+                  className="border-b border-slate-100 pb-2 last:border-0"
+                >
+                  <p className="text-slate-900">
+                    {entry.fromStatus
+                      ? CREDIT_REQUEST_STATUS_LABELS[entry.fromStatus]
+                      : 'Criada'}{' '}
+                    → {CREDIT_REQUEST_STATUS_LABELS[entry.toStatus]}
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    {formatDateTime(entry.createdAt)}
+                  </p>
+                  {entry.reason && (
+                    <p className="mt-1 text-slate-600">
+                      Motivo: {entry.reason}
+                    </p>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+      )}
 
       <ObservationModal
         open={confirmAction === 'SUBMIT'}
@@ -509,9 +567,12 @@ export function CreditRequestDetailPage() {
 
       <ReturnModal
         open={modalAction === 'RETURN'}
+        creditRequestId={id!}
         targets={actions.find((a) => a.action === 'RETURN')?.targets}
         isLoading={returnMutation.isPending}
-        onSubmit={(values) => returnMutation.mutate(values)}
+        onSubmit={(values, pendencias) =>
+          returnMutation.mutate({ values, pendencias })
+        }
         onClose={() => setModalAction(null)}
       />
       <RejectModal
@@ -547,11 +608,9 @@ function ObservationModal({
   onSubmit: (values: ObservationFormValues) => void
   onClose: () => void
 }) {
-  const {
-    register,
-    handleSubmit,
-    reset,
-  } = useForm<ObservationFormValues>({ resolver: zodResolver(observationSchema) })
+  const { register, handleSubmit, reset } = useForm<ObservationFormValues>({
+    resolver: zodResolver(observationSchema),
+  })
 
   function handleClose() {
     reset()
@@ -594,16 +653,18 @@ function ObservationModal({
 }
 
 function ReturnModal({
+  creditRequestId,
   open,
   targets,
   isLoading,
   onSubmit,
   onClose,
 }: {
+  creditRequestId: string
   open: boolean
   targets?: { value: string; label: string }[]
   isLoading: boolean
-  onSubmit: (values: ReturnFormValues) => void
+  onSubmit: (values: ReturnFormValues, pendencias: PendenciaDevolucao[]) => void
   onClose: () => void
 }) {
   const {
@@ -612,9 +673,30 @@ function ReturnModal({
     reset,
     formState: { errors },
   } = useForm<ReturnFormValues>({ resolver: zodResolver(returnSchema) })
+  // Documentos marcados na devolução: FALTANTE (não anexado) ou ERRADO (anexado incorreto).
+  const [marcados, setMarcados] = useState<
+    Partial<Record<DocumentType, DocumentPendencyMotivo>>
+  >({})
+
+  function alternarDocumento(tipo: DocumentType) {
+    setMarcados((atual) => {
+      const proximo = { ...atual }
+      if (proximo[tipo]) {
+        delete proximo[tipo]
+      } else {
+        proximo[tipo] = 'FALTANTE'
+      }
+      return proximo
+    })
+  }
+
+  function alterarMotivo(tipo: DocumentType, motivo: DocumentPendencyMotivo) {
+    setMarcados((atual) => ({ ...atual, [tipo]: motivo }))
+  }
 
   function handleClose() {
     reset()
+    setMarcados({})
     onClose()
   }
 
@@ -623,8 +705,15 @@ function ReturnModal({
       <form
         onSubmit={(e) =>
           void handleSubmit((values) => {
-            onSubmit(values)
+            const pendencias = Object.entries(marcados).map(
+              ([type, motivo]) => ({
+                type: type as DocumentType,
+                motivo: motivo as DocumentPendencyMotivo,
+              }),
+            )
+            onSubmit(values, pendencias)
             reset()
+            setMarcados({})
           })(e)
         }
         className="flex flex-col gap-4"
@@ -651,6 +740,17 @@ function ReturnModal({
           error={errors.reason?.message}
           {...register('reason')}
         />
+        <div className="flex flex-col gap-2">
+          <p className="text-sm font-medium text-slate-800">
+            Documentos a corrigir (opcional)
+          </p>
+          <ChecklistAnalise
+            creditRequestId={creditRequestId}
+            marcados={marcados}
+            onAlternar={alternarDocumento}
+            onMotivo={alterarMotivo}
+          />
+        </div>
         <div className="flex justify-end gap-2">
           <Button
             type="button"

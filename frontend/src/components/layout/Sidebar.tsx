@@ -21,7 +21,9 @@ export function Sidebar({ onNavigate }: { onNavigate: () => void }) {
         <LayoutDashboard className="size-4" aria-hidden="true" />
         {user?.role === 'CONSULTOR' ? 'Minhas Solicitações' : 'Fila de Análise'}
       </NavLink>
-      {(user?.role === 'CONSULTOR' || user?.role === 'ADMIN') && (
+      {(user?.role === 'GERENTE' ||
+        user?.role === 'CREDITO' ||
+        user?.role === 'ADMIN') && (
         <NavLink to="/clients" className={linkClass} onClick={onNavigate}>
           <Users className="size-4" aria-hidden="true" />
           Clientes

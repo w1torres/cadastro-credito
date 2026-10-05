@@ -3,6 +3,7 @@ import {
   IsEnum,
   IsOptional,
   IsString,
+  Matches,
   MinLength,
 } from 'class-validator';
 import { Role } from '@prisma/client';
@@ -15,10 +16,6 @@ export class CreateUserDto {
   @IsEmail()
   email!: string;
 
-  @IsString()
-  @MinLength(8)
-  password!: string;
-
   @IsEnum(Role)
   role!: Role;
 
@@ -26,4 +23,10 @@ export class CreateUserDto {
   @IsOptional()
   @IsString()
   branchId?: string;
+
+  /** Código do vendedor/gerente no SAP (ex.: RC0202). Opcional. */
+  @IsOptional()
+  @IsString()
+  @Matches(/^[A-Za-z]{2}\d{4}$/, { message: 'Código deve ter 2 letras e 4 números (ex.: RC0202)' })
+  codigo?: string;
 }

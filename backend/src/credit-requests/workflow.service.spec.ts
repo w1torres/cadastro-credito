@@ -60,6 +60,7 @@ describe('WorkflowService', () => {
     creditRequestHistory: { create: AnyMock; findMany: AnyMock };
     property: { count: AnyMock };
     signatureRequest: { findFirst: AnyMock };
+    documentPendency: { count: AnyMock; deleteMany: AnyMock; createMany: AnyMock };
     auditLog: { create: AnyMock };
     $transaction: AnyMock;
   };
@@ -70,9 +71,15 @@ describe('WorkflowService', () => {
       creditRequestHistory: { create: vi.fn(), findMany: vi.fn() },
       property: { count: vi.fn() },
       signatureRequest: { findFirst: vi.fn() },
+      documentPendency: {
+        count: vi.fn(),
+        deleteMany: vi.fn(),
+        createMany: vi.fn(),
+      },
       auditLog: { create: vi.fn() },
       $transaction: vi.fn(),
     };
+    prisma.documentPendency.count.mockResolvedValue(0);
     prisma.$transaction.mockImplementation(
       (callback: (tx: typeof prisma) => unknown) => callback(prisma),
     );
@@ -180,7 +187,7 @@ describe('WorkflowService', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
-  it('requires targetStatus when CREDITO returns from CREDIT_REVIEW (ambiguous destination)', async () => {
+  it('sends CREDITO returns only to the GERENTE, never straight to the CONSULTOR', async () => {
     prisma.creditRequest.findUnique.mockResolvedValue(
       baseCreditRequest({ status: 'CREDIT_REVIEW' }),
     );
@@ -189,29 +196,25 @@ describe('WorkflowService', () => {
       service.transition(
         'cr-1',
         'RETURN',
-        { expectedUpdatedAt: UPDATED_AT.toISOString(), reason: 'faltam docs' },
+        {
+          expectedUpdatedAt: UPDATED_AT.toISOString(),
+          reason: 'documento pendente',
+          targetStatus: 'RETURNED_TO_CONSULTANT',
+        },
         credito,
       ),
-    ).rejects.toBeInstanceOf(BadRequestException);
-  });
-
-  it('lets CREDITO skip the GERENTE and return straight to the CONSULTOR via targetStatus', async () => {
-    prisma.creditRequest.findUnique.mockResolvedValue(
-      baseCreditRequest({ status: 'CREDIT_REVIEW' }),
-    );
+    ).rejects.toBeInstanceOf(ConflictException);
 
     const result = await service.transition(
       'cr-1',
       'RETURN',
       {
         expectedUpdatedAt: UPDATED_AT.toISOString(),
-        reason: 'documento do cliente pendente',
-        targetStatus: 'RETURNED_TO_CONSULTANT',
+        reason: 'documento pendente',
       },
       credito,
     );
-
-    expect(result.status).toBe('RETURNED_TO_CONSULTANT');
+    expect(result.status).toBe('RETURNED_TO_MANAGER');
   });
 
   it('rejects a stale expectedUpdatedAt (concurrency guard)', async () => {
@@ -253,6 +256,107 @@ describe('WorkflowService', () => {
         consultor,
       ),
     ).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('replaces the pending documents with the list sent on RETURN (faltante or errado)', async () => {
+    prisma.creditRequest.findUnique.mockResolvedValue(
+      baseCreditRequest({ status: 'CREDIT_REVIEW', consultantId: consultor.id }),
+    );
+
+    await service.transition(
+      'cr-1',
+      'RETURN',
+      {
+        expectedUpdatedAt: UPDATED_AT.toISOString(),
+        reason: 'Documentos incompletos',
+        pendencias: [
+          { type: 'CONTRATO_SOCIAL', motivo: 'FALTANTE' },
+          { type: 'DRE', motivo: 'ERRADO' },
+        ],
+      },
+      credito,
+    );
+
+    expect(prisma.documentPendency.deleteMany).toHaveBeenCalledWith({
+      where: { creditRequestId: 'cr-1' },
+    });
+    expect(prisma.documentPendency.createMany).toHaveBeenCalledWith({
+      data: [
+        { creditRequestId: 'cr-1', type: 'CONTRATO_SOCIAL', motivo: 'FALTANTE', markedById: credito.id },
+        { creditRequestId: 'cr-1', type: 'DRE', motivo: 'ERRADO', markedById: credito.id },
+      ],
+    });
+  });
+
+  it('rejects a RETURN listing the same document twice', async () => {
+    prisma.creditRequest.findUnique.mockResolvedValue(
+      baseCreditRequest({ status: 'CREDIT_REVIEW' }),
+    );
+
+    await expect(
+      service.transition(
+        'cr-1',
+        'RETURN',
+        {
+          expectedUpdatedAt: UPDATED_AT.toISOString(),
+          reason: 'x',
+          pendencias: [
+            { type: 'DRE', motivo: 'FALTANTE' },
+            { type: 'DRE', motivo: 'ERRADO' },
+          ],
+        },
+        credito,
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('blocks the manager from sending to CREDITO while documents are pending', async () => {
+    prisma.creditRequest.findUnique.mockResolvedValue(
+      baseCreditRequest({ status: 'MANAGER_REVIEW', consultantId: consultor.id, fichaCadastralSituacao: 'APROVADA' }),
+    );
+    prisma.documentPendency.count.mockResolvedValue(2);
+
+    await expect(
+      service.transition(
+        'cr-1',
+        'SUBMIT',
+        { expectedUpdatedAt: UPDATED_AT.toISOString() },
+        gerente,
+      ),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(prisma.creditRequest.update).not.toHaveBeenCalled();
+  });
+
+  it('blocks the manager from sending to CREDITO while the ficha cadastral is not approved', async () => {
+    prisma.creditRequest.findUnique.mockResolvedValue(
+      baseCreditRequest({ status: 'MANAGER_REVIEW', fichaCadastralSituacao: 'EM_ANALISE' }),
+    );
+
+    await expect(
+      service.transition(
+        'cr-1',
+        'SUBMIT',
+        { expectedUpdatedAt: UPDATED_AT.toISOString() },
+        gerente,
+      ),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(prisma.creditRequest.update).not.toHaveBeenCalled();
+  });
+
+  it('lets the manager send to CREDITO when there are no pending documents and the ficha is approved', async () => {
+    prisma.creditRequest.findUnique.mockResolvedValue(
+      baseCreditRequest({ status: 'MANAGER_REVIEW', fichaCadastralSituacao: 'APROVADA' }),
+    );
+
+    await service.transition(
+      'cr-1',
+      'SUBMIT',
+      { expectedUpdatedAt: UPDATED_AT.toISOString() },
+      gerente,
+    );
+    expect(prisma.creditRequest.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { status: 'SUBMITTED_TO_CREDIT' } }),
+    );
   });
 
   it('allows SUBMIT from RETURNED_TO_CONSULTANT once the SPC/Bacen authorization is signed', async () => {

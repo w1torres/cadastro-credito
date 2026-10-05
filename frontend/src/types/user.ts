@@ -7,6 +7,7 @@ export interface AdminUser {
   role: Role
   isActive: boolean
   branchId: string | null
+  codigo: string | null
   branch: { id: string; name: string } | null
   createdAt: string
   updatedAt: string
@@ -15,9 +16,9 @@ export interface AdminUser {
 export interface CreateUserInput {
   name: string
   email: string
-  password: string
   role: Role
   branchId?: string
+  codigo?: string
 }
 
 export interface UpdateUserInput {
@@ -26,4 +27,5 @@ export interface UpdateUserInput {
   role?: Role
   isActive?: boolean
   branchId?: string
+  codigo?: string
 }

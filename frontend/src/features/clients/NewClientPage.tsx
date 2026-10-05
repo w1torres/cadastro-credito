@@ -2,10 +2,9 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { FormProvider, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { ArrowLeft, ArrowRight, Send } from 'lucide-react'
+import { ArrowLeft, ArrowRight } from 'lucide-react'
 import { ClientFieldsSection } from './ClientFieldsSection'
 import { PartnersSection } from './PartnersSection'
-import { ReviewSection } from './ReviewSection'
 import { CreditRequestFieldsSection } from '../credit-requests/CreditRequestFieldsSection'
 import { PropertiesSection } from '../properties/PropertiesSection'
 import { clientsApi } from './clientsApi'
@@ -68,11 +67,25 @@ interface WizardStep {
   fields: Path<NewClientRequestFormValues>[]
 }
 
+/**
+ * Etapas preenchidas aqui (1 a 3). Ao sair da última, a solicitação é criada
+ * como rascunho e a tela segue para a edição, que tem as 6 etapas completas
+ * (Documentos, Assinatura e Revisão dependem de a solicitação já existir).
+ */
 const STEPS: WizardStep[] = [
   { label: 'Dados do Cliente', fields: ['client', 'partners'] },
   { label: 'Solicitação de Crédito', fields: ['creditRequest'] },
   { label: 'Fazendas e Produção', fields: ['properties'] },
-  { label: 'Revisão e Envio', fields: [] },
+]
+
+/** Mesmas 6 etapas exibidas na edição — o usuário vê o mesmo fluxo nas duas telas. */
+const STEPPER_LABELS = [
+  'Dados do Cliente',
+  'Solicitação de Crédito',
+  'Fazendas e Produção',
+  'Documentos e Anexos',
+  'Assinatura',
+  'Revisão e Envio',
 ]
 
 export function NewClientPage() {
@@ -86,7 +99,7 @@ export function NewClientPage() {
   })
 
   const isFirstStep = step === 0
-  const isLastStep = step === STEPS.length - 1
+  const isLastFormStep = step === STEPS.length - 1
 
   async function handleNext() {
     const fieldsToValidate = STEPS[step].fields
@@ -101,7 +114,7 @@ export function NewClientPage() {
     setStep((current) => Math.max(current - 1, 0))
   }
 
-  async function onSubmit(values: NewClientRequestFormValues) {
+  async function criarSolicitacao(values: NewClientRequestFormValues) {
     setIsSubmitting(true)
     let clientId: string | undefined
     try {
@@ -126,8 +139,8 @@ export function NewClientPage() {
         toCreateCreditRequestInput(values.creditRequest, client.id),
       )
 
-      showSuccess('Cliente e solicitação de crédito cadastrados com sucesso.')
-      navigate(`/credit-requests/${creditRequest.id}`)
+      showSuccess('Cliente cadastrado. Agora anexe os documentos.')
+      navigate(`/credit-requests/${creditRequest.id}/edit?etapa=3`)
     } catch (error) {
       const message =
         error instanceof ApiError
@@ -142,18 +155,29 @@ export function NewClientPage() {
     }
   }
 
+  async function handleContinuar() {
+    if (!isLastFormStep) {
+      await handleNext()
+      return
+    }
+    await methods.handleSubmit(criarSolicitacao)()
+  }
+
   return (
     <FormProvider {...methods}>
       <div className="flex flex-col gap-6">
         <Card>
           <Stepper
-            steps={STEPS.map((s) => ({ label: s.label }))}
+            steps={STEPPER_LABELS.map((label) => ({ label }))}
             currentStep={step}
           />
         </Card>
 
         <form
-          onSubmit={(e) => void methods.handleSubmit(onSubmit)(e)}
+          onSubmit={(e) => {
+            e.preventDefault()
+            void handleContinuar()
+          }}
           className="flex flex-col gap-6"
           noValidate
         >
@@ -161,7 +185,9 @@ export function NewClientPage() {
             <>
               <Card>
                 <CardHeader tone="brand">
-                  <CardTitle className="text-white">1 — Dados do Cliente</CardTitle>
+                  <CardTitle className="text-white">
+                    1 — Dados do Cliente
+                  </CardTitle>
                 </CardHeader>
                 <ClientFieldsSection />
               </Card>
@@ -178,7 +204,9 @@ export function NewClientPage() {
           {step === 1 && (
             <Card>
               <CardHeader tone="brand">
-                <CardTitle className="text-white">2 — Solicitação e Análise Inicial</CardTitle>
+                <CardTitle className="text-white">
+                  2 — Solicitação e Análise Inicial
+                </CardTitle>
               </CardHeader>
               <CreditRequestFieldsSection />
             </Card>
@@ -187,18 +215,11 @@ export function NewClientPage() {
           {step === 2 && (
             <Card>
               <CardHeader tone="brand">
-                <CardTitle className="text-white">3 — Fazendas e Produção</CardTitle>
+                <CardTitle className="text-white">
+                  3 — Fazendas e Produção
+                </CardTitle>
               </CardHeader>
               <PropertiesSection />
-            </Card>
-          )}
-
-          {step === 3 && (
-            <Card>
-              <CardHeader tone="brand">
-                <CardTitle className="text-white">4 — Revisão e Envio</CardTitle>
-              </CardHeader>
-              <ReviewSection />
             </Card>
           )}
 
@@ -213,21 +234,16 @@ export function NewClientPage() {
               Voltar
             </Button>
 
-            {isLastStep ? (
-              <Button
-                type="button"
-                isLoading={isSubmitting}
-                onClick={() => void methods.handleSubmit(onSubmit)()}
-              >
-                <Send className="size-4" aria-hidden="true" />
-                Enviar Solicitação
-              </Button>
-            ) : (
-              <Button type="button" onClick={() => void handleNext()}>
-                Próxima Etapa
+            <Button
+              type="button"
+              isLoading={isSubmitting}
+              onClick={() => void handleContinuar()}
+            >
+              {isLastFormStep ? 'Salvar e anexar documentos' : 'Próxima Etapa'}
+              {!isLastFormStep && (
                 <ArrowRight className="size-4" aria-hidden="true" />
-              </Button>
-            )}
+              )}
+            </Button>
           </div>
         </form>
       </div>

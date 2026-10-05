@@ -7,17 +7,32 @@ import App from './App.tsx'
 import { queryClient } from './lib/queryClient'
 import { AuthProvider } from './features/auth/AuthContext'
 import { ToastProvider } from './components/ui/Toast'
+import { msalInstance } from './lib/msal'
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <ToastProvider>
-        <BrowserRouter>
-          <AuthProvider>
-            <App />
-          </AuthProvider>
-        </BrowserRouter>
-      </ToastProvider>
-    </QueryClientProvider>
-  </StrictMode>,
-)
+function renderizar() {
+  createRoot(document.getElementById('root')!).render(
+    <StrictMode>
+      <QueryClientProvider client={queryClient}>
+        <ToastProvider>
+          <BrowserRouter>
+            <AuthProvider>
+              <App />
+            </AuthProvider>
+          </BrowserRouter>
+        </ToastProvider>
+      </QueryClientProvider>
+    </StrictMode>,
+  )
+}
+
+// Renderiza mesmo se o MSAL falhar na inicialização: a tela de login mostra o erro.
+if (msalInstance) {
+  msalInstance
+    .initialize()
+    .catch((error: unknown) =>
+      console.error('Falha ao iniciar o login Microsoft:', error),
+    )
+    .finally(renderizar)
+} else {
+  renderizar()
+}

@@ -6,6 +6,8 @@ import type {
 } from '../../types/credit-request'
 import type { CreditRequestStatus } from '../../types/credit-request-status'
 import type { PaginatedResult } from '../../types/pagination'
+import type { DocumentType } from '../../types/document'
+import type { FichaCadastralSituacao } from '../../types/credit-request'
 
 export interface ListCreditRequestsParams {
   clientId?: string
@@ -21,6 +23,7 @@ interface TransitionPayload {
 interface ReturnPayload extends TransitionPayload {
   reason: string
   targetStatus?: CreditRequestStatus
+  pendencias?: { type: DocumentType; motivo: 'FALTANTE' | 'ERRADO' }[]
 }
 
 interface ReasonPayload extends TransitionPayload {
@@ -50,6 +53,15 @@ export const creditRequestsApi = {
     api.post<CreditRequest>('/credit-requests', input),
   update: (id: string, input: Partial<CreateCreditRequestInput>) =>
     api.patch<CreditRequest>(`/credit-requests/${id}`, input),
+  setDocumentPendencies: (id: string, types: DocumentType[]) =>
+    api.patch<DocumentType[]>(`/credit-requests/${id}/document-pendencies`, {
+      types,
+    }),
+  setFichaCadastral: (
+    id: string,
+    payload: { situacao: FichaCadastralSituacao; motivo?: string },
+  ) =>
+    api.patch<CreditRequest>(`/credit-requests/${id}/ficha-cadastral`, payload),
   history: (id: string) =>
     api.get<CreditRequestHistoryEntry[]>(`/credit-requests/${id}/history`),
   submit: (id: string, payload: OptionalReasonPayload) =>

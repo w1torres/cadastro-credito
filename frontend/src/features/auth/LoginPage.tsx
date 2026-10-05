@@ -1,38 +1,65 @@
 import { useState } from 'react'
-import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
+import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { loginSchema } from '../../schemas/login.schema'
-import type { LoginFormValues } from '../../schemas/login.schema'
 import { authApi } from './authApi'
 import { useAuth } from './AuthContext'
 import { ApiError } from '../../lib/apiClient'
+import {
+  ENTRA_CONFIGURADO,
+  msalInstance,
+  ENTRA_LOGIN_SCOPES,
+} from '../../lib/msal'
 import { Button } from '../../components/ui/Button'
-import { InputField } from '../../components/ui/Field'
-
-const DEV_SEED_PASSWORD = 'Senha@123'
-
-const QUICK_LOGIN_PROFILES = [
-  { label: 'Consultor', email: 'consultor@example.com' },
-  { label: 'Gerente Comercial', email: 'gerente@example.com' },
-  { label: 'Gerente de Crédito', email: 'credito@example.com' },
-]
 
 export function LoginPage() {
   const { login } = useAuth()
   const navigate = useNavigate()
   const [formError, setFormError] = useState<string | null>(null)
-  const [quickLoginEmail, setQuickLoginEmail] = useState<string | null>(null)
-  const {
-    register,
-    handleSubmit,
-    formState: { errors, isSubmitting },
-  } = useForm<LoginFormValues>({ resolver: zodResolver(loginSchema) })
+  const [isLoading, setIsLoading] = useState(false)
+  // Login de teste com usuário local: só existe quando VITE_AUTH_DEV_LOGIN=true (nunca em produção).
+  const loginDevHabilitado = import.meta.env.VITE_AUTH_DEV_LOGIN === 'true'
 
-  async function performLogin(email: string, password: string) {
+  const { data: usuariosTeste } = useQuery({
+    queryKey: ['dev-users'],
+    queryFn: () => authApi.devUsers(),
+    enabled: loginDevHabilitado,
+    retry: false,
+  })
+
+  async function handleLoginDev(email: string) {
     setFormError(null)
+    setIsLoading(true)
     try {
-      const session = await authApi.login(email, password)
+      const session = await authApi.devLogin(email)
+      login(session)
+      navigate('/dashboard', { replace: true })
+    } catch (error) {
+      setFormError(
+        error instanceof ApiError ? error.message : 'Não foi possível entrar.',
+      )
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  async function handleEntrarComMicrosoft() {
+    setFormError(null)
+    if (!msalInstance) {
+      setFormError(
+        'Login Microsoft não configurado (VITE_ENTRA_CLIENT_ID e VITE_ENTRA_TENANT_ID).',
+      )
+      return
+    }
+    setIsLoading(true)
+    try {
+      const result = await msalInstance.loginPopup({
+        scopes: ENTRA_LOGIN_SCOPES,
+      })
+      if (!result.idToken) {
+        setFormError('A Microsoft não devolveu a identidade do usuário.')
+        return
+      }
+      const session = await authApi.loginEntra(result.idToken)
       login(session)
       navigate('/dashboard', { replace: true })
     } catch (error) {
@@ -41,19 +68,8 @@ export function LoginPage() {
           ? error.message
           : 'Não foi possível entrar. Tente novamente.',
       )
-    }
-  }
-
-  async function onSubmit(values: LoginFormValues) {
-    await performLogin(values.email, values.password)
-  }
-
-  async function handleQuickLogin(email: string) {
-    setQuickLoginEmail(email)
-    try {
-      await performLogin(email, DEV_SEED_PASSWORD)
     } finally {
-      setQuickLoginEmail(null)
+      setIsLoading(false)
     }
   }
 
@@ -64,27 +80,44 @@ export function LoginPage() {
           Cadastro de Crédito Rural
         </h1>
         <p className="mt-1 text-sm text-slate-500">
-          Entre com seu e-mail corporativo.
+          Entre com sua conta corporativa Microsoft. Seu acesso é liberado pelo
+          administrador.
         </p>
-        <form
-          onSubmit={(e) => void handleSubmit(onSubmit)(e)}
-          className="mt-6 flex flex-col gap-4"
-          noValidate
-        >
-          <InputField
-            label="E-mail"
-            type="email"
-            autoComplete="username"
-            error={errors.email?.message}
-            {...register('email')}
-          />
-          <InputField
-            label="Senha"
-            type="password"
-            autoComplete="current-password"
-            error={errors.password?.message}
-            {...register('password')}
-          />
+        <div className="mt-6 flex flex-col gap-4">
+          <Button
+            type="button"
+            isLoading={isLoading}
+            disabled={!ENTRA_CONFIGURADO}
+            onClick={() => void handleEntrarComMicrosoft()}
+          >
+            Entrar com Microsoft
+          </Button>
+          {loginDevHabilitado && (
+            <div className="flex flex-col gap-2 border-t border-slate-200 pt-4">
+              <p className="text-xs font-medium text-slate-500">
+                Usuários de teste (local)
+              </p>
+              <div className="flex max-h-72 flex-col gap-2 overflow-y-auto">
+                {(usuariosTeste ?? []).map((usuario) => (
+                  <Button
+                    key={usuario.id}
+                    type="button"
+                    variant="secondary"
+                    disabled={isLoading}
+                    onClick={() => void handleLoginDev(usuario.email)}
+                  >
+                    {usuario.name} — {usuario.role}
+                    {usuario.branch ? ` (${usuario.branch})` : ''}
+                  </Button>
+                ))}
+                {usuariosTeste && usuariosTeste.length === 0 && (
+                  <p className="text-sm text-slate-500">
+                    Nenhum usuário de teste ativo.
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
           {formError && (
             <p
               className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700"
@@ -93,36 +126,7 @@ export function LoginPage() {
               {formError}
             </p>
           )}
-          <Button type="submit" isLoading={isSubmitting} className="mt-2">
-            Entrar
-          </Button>
-        </form>
-
-        {import.meta.env.DEV && (
-          <div className="mt-6 border-t border-slate-200 pt-4">
-            <p className="text-xs font-medium text-slate-500">
-              Perfis de teste (ambiente de desenvolvimento)
-            </p>
-            <div className="mt-2 flex flex-col gap-2">
-              {QUICK_LOGIN_PROFILES.map((profile) => (
-                <Button
-                  key={profile.email}
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  isLoading={quickLoginEmail === profile.email}
-                  disabled={
-                    quickLoginEmail !== null &&
-                    quickLoginEmail !== profile.email
-                  }
-                  onClick={() => void handleQuickLogin(profile.email)}
-                >
-                  Entrar como {profile.label}
-                </Button>
-              ))}
-            </div>
-          </div>
-        )}
+        </div>
       </div>
     </main>
   )

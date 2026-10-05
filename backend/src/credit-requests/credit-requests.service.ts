@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   Injectable,
@@ -7,9 +8,14 @@ import {
 import {
   CreditRequest,
   CreditRequestStatus,
+  DocumentType,
+  FichaCadastralSituacao,
   Prisma,
   Role,
 } from '@prisma/client';
+import { DOCUMENT_CHECKLIST_TYPES } from './constants.js';
+import { SetDocumentPendenciesDto } from './dto/set-document-pendencies.dto.js';
+import { SetFichaCadastralDto } from './dto/set-ficha-cadastral.dto.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { recordAudit } from '../common/audit/record-audit.util.js';
 import {
@@ -107,7 +113,10 @@ export class CreditRequestsService {
         skip: (page - 1) * pageSize,
         take: pageSize,
         orderBy: { createdAt: 'desc' },
-        include: { consultant: { select: CONSULTANT_SELECT } },
+        include: {
+          consultant: { select: CONSULTANT_SELECT },
+          documentPendencies: { select: { type: true, motivo: true } },
+        },
       }),
       this.prisma.creditRequest.count({ where }),
     ]);
@@ -146,12 +155,144 @@ export class CreditRequestsService {
     await this.prisma.creditRequest.delete({ where: { id } });
   }
 
+  /**
+   * Substitui a lista de documentos pendentes da solicitação. Só GERENTE (da
+   * filial, durante a análise dele) ou CREDITO (durante a análise de crédito)
+   * podem marcar pendências; ADMIN pode em qualquer etapa.
+   */
+  async setDocumentPendencies(
+    id: string,
+    dto: SetDocumentPendenciesDto,
+    user: AuthUser,
+  ): Promise<DocumentType[]> {
+    const creditRequest = await this.findOwned(id);
+    this.assertVisible(creditRequest, user);
+    this.assertCanReview(creditRequest, user);
+
+    const desejados = new Set(dto.types);
+    if (![...desejados].every((tipo) => DOCUMENT_CHECKLIST_TYPES.includes(tipo))) {
+      throw new BadRequestException('Documento fora do checklist de pendências.');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const atuais = await tx.documentPendency.findMany({
+        where: { creditRequestId: id },
+        select: { type: true },
+      });
+      const atuaisSet = new Set(atuais.map((p) => p.type));
+      const removidos = [...atuaisSet].filter((tipo) => !desejados.has(tipo));
+      const adicionados = [...desejados].filter((tipo) => !atuaisSet.has(tipo));
+
+      if (removidos.length > 0) {
+        await tx.documentPendency.deleteMany({
+          where: { creditRequestId: id, type: { in: removidos } },
+        });
+      }
+      if (adicionados.length > 0) {
+        await tx.documentPendency.createMany({
+          data: adicionados.map((type) => ({
+            creditRequestId: id,
+            type,
+            markedById: user.id,
+          })),
+        });
+      }
+      if (removidos.length > 0 || adicionados.length > 0) {
+        await recordAudit(tx, {
+          userId: user.id,
+          action: 'DOCUMENT_PENDENCIES_UPDATED',
+          entity: 'CreditRequest',
+          entityId: id,
+          metadata: { adicionados, removidos },
+        });
+      }
+      return [...desejados];
+    });
+  }
+
+  /**
+   * Define a situação da ficha cadastral (EM_ANALISE, APROVADA ou REPROVADA).
+   * Mesma regra de quem pode revisar as pendências.
+   */
+  async setFichaCadastral(
+    id: string,
+    dto: SetFichaCadastralDto,
+    user: AuthUser,
+  ): Promise<CreditRequest> {
+    const creditRequest = await this.findOwned(id);
+    this.assertVisible(creditRequest, user);
+    this.assertCanReview(creditRequest, user);
+
+    const motivo = dto.motivo?.trim() || null;
+    if (dto.situacao === FichaCadastralSituacao.REPROVADA && !motivo) {
+      throw new BadRequestException('Informe o motivo da reprovação da ficha cadastral.');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.creditRequest.update({
+        where: { id },
+        data: {
+          fichaCadastralSituacao: dto.situacao,
+          fichaCadastralMotivo:
+            dto.situacao === FichaCadastralSituacao.REPROVADA ? motivo : null,
+          fichaCadastralRevisadaEm: new Date(),
+        },
+      });
+      await recordAudit(tx, {
+        userId: user.id,
+        action: 'FICHA_CADASTRAL_UPDATED',
+        entity: 'CreditRequest',
+        entityId: id,
+        metadata: {
+          de: creditRequest.fichaCadastralSituacao,
+          para: dto.situacao,
+          motivo: dto.situacao === FichaCadastralSituacao.REPROVADA ? motivo : null,
+        },
+      });
+      return updated;
+    });
+  }
+
+  /**
+   * GERENTE revisa só durante a análise dele; CREDITO só na análise de crédito.
+   * ADMIN passa em qualquer etapa.
+   */
+  private assertCanReview(
+    creditRequest: Pick<CreditRequest, 'status'>,
+    user: AuthUser,
+  ): void {
+    const etapasPorPapel: Partial<Record<Role, CreditRequestStatus[]>> = {
+      [Role.GERENTE]: [
+        CreditRequestStatus.SUBMITTED_TO_MANAGER,
+        CreditRequestStatus.MANAGER_REVIEW,
+        CreditRequestStatus.RETURNED_TO_MANAGER,
+      ],
+      [Role.CREDITO]: [
+        CreditRequestStatus.SUBMITTED_TO_CREDIT,
+        CreditRequestStatus.CREDIT_REVIEW,
+      ],
+    };
+    if (user.role === Role.ADMIN) return;
+    const permitidas = etapasPorPapel[user.role];
+    if (!permitidas) {
+      throw new ForbiddenException('Você não tem permissão para revisar esta solicitação.');
+    }
+    if (!permitidas.includes(creditRequest.status)) {
+      throw new ConflictException(
+        'A solicitação não está em uma etapa de análise que permita esta alteração.',
+      );
+    }
+  }
+
   private async findOwned(
     id: string,
   ): Promise<CreditRequest & { consultant: ConsultantSummary }> {
     const creditRequest = await this.prisma.creditRequest.findUnique({
       where: { id },
-      include: { consultant: { select: CONSULTANT_SELECT } },
+      include: {
+        consultant: { select: CONSULTANT_SELECT },
+        documentPendencies: { select: { type: true, motivo: true } },
+      },
     });
     if (!creditRequest) {
       throw new NotFoundException('Solicitação de crédito não encontrada.');

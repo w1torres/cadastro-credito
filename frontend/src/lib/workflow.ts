@@ -89,12 +89,9 @@ const RULES: TransitionRule[] = [
     action: 'RETURN',
     from: 'CREDIT_REVIEW',
     roles: ['CREDITO'],
-    label: 'Devolver',
+    label: 'Devolver ao gerente',
     variant: 'danger',
-    targets: [
-      { value: 'RETURNED_TO_MANAGER', label: 'Gerente' },
-      { value: 'RETURNED_TO_CONSULTANT', label: 'Consultor' },
-    ],
+    targets: [{ value: 'RETURNED_TO_MANAGER', label: 'Gerente' }],
   },
 
   {

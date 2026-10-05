@@ -37,7 +37,7 @@ describe('UsersService', () => {
   });
 
   describe('create', () => {
-    it('hashes the password before persisting and selects only safe fields', async () => {
+    it('persists without a password, lowercases the e-mail and selects only safe fields', async () => {
       prisma.user.findUnique.mockResolvedValue(null);
       // A Prisma `select` real projection would already omit passwordHash;
       // the mock returns a value shaped the same way to assert on it below.
@@ -54,16 +54,16 @@ describe('UsersService', () => {
       const result = await service.create({
         name: 'Fulano',
         email: 'fulano@example.com',
-        password: 'Senha@123',
         role: 'CONSULTOR',
       });
 
       expect(result).not.toHaveProperty('passwordHash');
       const createCall = prisma.user.create.mock.calls[0][0] as {
-        data: { passwordHash: string };
+        data: { email: string; passwordHash?: string };
         select: Record<string, boolean>;
       };
-      expect(createCall.data.passwordHash).not.toBe('Senha@123');
+      expect(createCall.data).not.toHaveProperty('passwordHash');
+      expect(createCall.data.email).toBe('fulano@example.com');
       expect(createCall.select.passwordHash).toBeUndefined();
     });
 
@@ -74,7 +74,6 @@ describe('UsersService', () => {
         service.create({
           name: 'Fulano',
           email: 'fulano@example.com',
-          password: 'Senha@123',
           role: 'CONSULTOR',
         }),
       ).rejects.toBeInstanceOf(ConflictException);

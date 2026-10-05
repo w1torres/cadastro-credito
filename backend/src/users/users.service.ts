@@ -3,7 +3,6 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
   paginate,
@@ -13,7 +12,6 @@ import { CreateUserDto } from './dto/create-user.dto.js';
 import { UpdateUserDto } from './dto/update-user.dto.js';
 import type { User } from '@prisma/client';
 
-const SALT_ROUNDS = 10;
 
 export type SafeUser = Omit<User, 'passwordHash'> & {
   branch: { id: string; name: string } | null;
@@ -26,6 +24,7 @@ const SAFE_USER_SELECT = {
   role: true,
   isActive: true,
   branchId: true,
+  codigo: true,
   branch: { select: { id: true, name: true } },
   createdAt: true,
   updatedAt: true,
@@ -35,22 +34,24 @@ const SAFE_USER_SELECT = {
 export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
 
+  /**
+   * Cadastro pelo ADMIN. Não há senha: o usuário entra só pelo Entra ID, então
+   * o e-mail precisa ser o mesmo da conta Microsoft.
+   */
   async create(dto: CreateUserDto): Promise<SafeUser> {
-    const existing = await this.prisma.user.findUnique({
-      where: { email: dto.email },
-    });
+    const email = dto.email.trim().toLowerCase();
+    const existing = await this.prisma.user.findUnique({ where: { email } });
     if (existing) {
       throw new ConflictException('Já existe um usuário com este e-mail.');
     }
 
-    const passwordHash = await bcrypt.hash(dto.password, SALT_ROUNDS);
     return this.prisma.user.create({
       data: {
         name: dto.name,
-        email: dto.email,
+        email,
         role: dto.role,
         branchId: dto.branchId,
-        passwordHash,
+        codigo: dto.codigo?.toUpperCase(),
       },
       select: SAFE_USER_SELECT,
     });
@@ -87,7 +88,7 @@ export class UsersService {
     await this.findOne(id);
     return this.prisma.user.update({
       where: { id },
-      data: dto,
+      data: { ...dto, codigo: dto.codigo?.toUpperCase() },
       select: SAFE_USER_SELECT,
     });
   }
