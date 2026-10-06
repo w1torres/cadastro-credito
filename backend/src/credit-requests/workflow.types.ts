@@ -27,6 +27,8 @@ export interface TransitionRule {
    * GERENTE/CREDITO antes de enviar a solicitação ao CREDITO.
    */
   requiresFichaAprovadaSemPendencias?: boolean;
+  /** Exige que não haja documentos pendentes (envio do consultor). */
+  requiresSemPendencias?: boolean;
 }
 
 export interface TransitionInput {
@@ -67,6 +69,7 @@ export const TRANSITIONS: TransitionRule[] = [
     requiresOwnership: true,
     requiresMinProperty: true,
     requiresSignedAuthorization: true,
+    requiresSemPendencias: true,
   },
   {
     action: 'SUBMIT',
@@ -75,6 +78,7 @@ export const TRANSITIONS: TransitionRule[] = [
     roles: [CONSULTOR],
     requiresOwnership: true,
     requiresSignedAuthorization: true,
+    requiresSemPendencias: true,
   },
   {
     action: 'SUBMIT',
@@ -170,3 +174,44 @@ export const TRANSITIONS: TransitionRule[] = [
     requiresOwnership: true,
   },
 ];
+
+/**
+ * Matriz de edição do cadastro e de upload de documentos (ver
+ * docs/PROMPT_CORRECAO_FLUXO_CREDITO.md). Suposição a confirmar com o negócio:
+ * o gerente só edita na devolução do crédito (RETURNED_TO_MANAGER); durante a
+ * própria análise (SUBMITTED_TO_MANAGER/MANAGER_REVIEW) fica somente leitura.
+ */
+export const ETAPAS_EDICAO_CONSULTOR: CreditRequestStatus[] = [
+  CreditRequestStatus.DRAFT,
+  CreditRequestStatus.RETURNED_TO_CONSULTANT,
+];
+export const ETAPAS_EDICAO_GERENTE: CreditRequestStatus[] = [
+  CreditRequestStatus.RETURNED_TO_MANAGER,
+];
+
+export interface PermissaoEdicao {
+  status: CreditRequestStatus;
+  role: Role;
+  /** O usuário é o consultor dono da solicitação. */
+  isOwner: boolean;
+  /** O consultor da solicitação pertence à mesma filial do usuário (GERENTE). */
+  mesmaFilial: boolean;
+}
+
+/** Fonte única: quem pode alterar o cadastro e anexar documentos, e em qual etapa. */
+export function podeEditarCadastro(permissao: PermissaoEdicao): boolean {
+  const { status, role, isOwner, mesmaFilial } = permissao;
+  if (role === Role.ADMIN) {
+    return (
+      ETAPAS_EDICAO_CONSULTOR.includes(status) || ETAPAS_EDICAO_GERENTE.includes(status)
+    );
+  }
+  if (role === Role.CONSULTOR) {
+    return isOwner && ETAPAS_EDICAO_CONSULTOR.includes(status);
+  }
+  if (role === Role.GERENTE) {
+    return mesmaFilial && ETAPAS_EDICAO_GERENTE.includes(status);
+  }
+  return false;
+}
+

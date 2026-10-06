@@ -33,6 +33,7 @@ describe('DocumentsService', () => {
       delete: AnyMock;
     };
     auditLog: { create: AnyMock };
+    documentPendency: { deleteMany: AnyMock };
     $transaction: AnyMock;
   };
   let storage: {
@@ -55,6 +56,7 @@ describe('DocumentsService', () => {
         delete: vi.fn(),
       },
       auditLog: { create: vi.fn() },
+      documentPendency: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
       $transaction: vi.fn(),
     };
     prisma.$transaction.mockImplementation(

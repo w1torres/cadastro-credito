@@ -1,3 +1,5 @@
+import { Badge } from '../../components/ui/Badge'
+import { PENDENCY_MOTIVO_LABELS } from '../../lib/document-checklist'
 import { useRef } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Download, Paperclip, Trash2 } from 'lucide-react'
@@ -26,9 +28,15 @@ function formatFileSize(bytes: number): string {
 export function DocumentsSection({
   creditRequestId,
   canEdit,
+  pendencias = [],
+  faltantes = [],
 }: {
   creditRequestId: string
   canEdit: boolean
+  /** Documentos pendentes marcados pelo gerente/crédito (faltante ou errado). */
+  pendencias?: { type: DocumentType; motivo: 'FALTANTE' | 'ERRADO' }[]
+  /** Obrigatórios ainda não anexados (destacados após tentar avançar). */
+  faltantes?: DocumentType[]
 }) {
   const queryClient = useQueryClient()
   const { showError } = useToast()
@@ -49,10 +57,15 @@ export function DocumentsSection({
   const uploadMutation = useMutation({
     mutationFn: ({ file, type }: { file: File; type: DocumentType }) =>
       documentsApi.upload(creditRequestId, file, type),
-    onSuccess: () =>
+    onSuccess: () => {
       void queryClient.invalidateQueries({
         queryKey: ['documents', creditRequestId],
-      }),
+      })
+      // Anexar o documento pendente resolve a pendência no backend: recarrega a solicitação.
+      void queryClient.invalidateQueries({
+        queryKey: ['credit-request', creditRequestId],
+      })
+    },
     onError,
   })
   const removeMutation = useMutation({
@@ -88,6 +101,8 @@ export function DocumentsSection({
               key={type}
               type={type}
               documents={byType.get(type) ?? []}
+              pendencia={pendencias.find((item) => item.type === type)}
+              faltante={faltantes.includes(type)}
               canEdit={canEdit}
               isUploading={uploadMutation.isPending}
               onUpload={(file) => uploadMutation.mutate({ file, type })}
@@ -111,6 +126,8 @@ export function DocumentsSection({
 function DocumentTypeCard({
   type,
   documents,
+  pendencia,
+  faltante = false,
   canEdit,
   isUploading,
   onUpload,
@@ -118,6 +135,8 @@ function DocumentTypeCard({
 }: {
   type: DocumentType
   documents: CreditRequestDocument[]
+  pendencia?: { motivo: 'FALTANTE' | 'ERRADO' }
+  faltante?: boolean
   canEdit: boolean
   isUploading: boolean
   onUpload: (file: File) => void
@@ -126,10 +145,37 @@ function DocumentTypeCard({
   const inputRef = useRef<HTMLInputElement>(null)
 
   return (
-    <div className="rounded-lg border border-slate-200 p-4">
-      <p className="font-semibold text-slate-800">
-        {DOCUMENT_TYPE_LABELS[type]}
-      </p>
+    <div
+      className={
+        faltante
+          ? 'rounded-lg border-2 border-red-400 bg-red-50/50 p-4'
+          : pendencia
+            ? 'rounded-lg border-2 border-amber-400 bg-amber-50/40 p-4'
+            : 'rounded-lg border border-slate-200 p-4'
+      }
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="font-semibold text-slate-800">
+          {DOCUMENT_TYPE_LABELS[type]}
+        </p>
+        {pendencia && (
+          <Badge variant="warning">
+            Pendente: {PENDENCY_MOTIVO_LABELS[pendencia.motivo]}
+          </Badge>
+        )}
+      </div>
+      {faltante && !documents.length && (
+        <p className="mt-1 text-xs font-medium text-red-700">
+          Obrigatório: anexe este documento para continuar.
+        </p>
+      )}
+      {pendencia && (
+        <p className="mt-1 text-xs text-amber-900">
+          {pendencia.motivo === 'FALTANTE'
+            ? 'Documento não anexado. Anexe o arquivo solicitado.'
+            : 'Documento anexado incorretamente. Anexe a versão correta.'}
+        </p>
+      )}
 
       {documents.length > 0 && (
         <ul className="mt-2 flex flex-col gap-1">

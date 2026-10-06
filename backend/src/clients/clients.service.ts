@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { ETAPAS_EDICAO_CONSULTOR, ETAPAS_EDICAO_GERENTE } from '../credit-requests/workflow.types.js';
 import { Client, Partner, Prisma, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
@@ -86,7 +87,7 @@ export class ClientsService {
     user: AuthUser,
   ): Promise<Client> {
     const client = await this.findOneForUser(id, user);
-    this.assertEditable(client, user);
+    await this.assertCadastroEditavel(client.id, user);
     return this.prisma.client.update({ where: { id: client.id }, data: dto });
   }
 
@@ -111,14 +112,47 @@ export class ClientsService {
     }
   }
 
-  /** Apenas o CONSULTOR dono do cliente, ou um ADMIN, podem editar. */
-  assertEditable(client: Pick<Client, 'consultantId'>, user: AuthUser): void {
-    const canEdit =
-      user.role === Role.ADMIN ||
-      (user.role === Role.CONSULTOR && client.consultantId === user.id);
-    if (!canEdit) {
+  /**
+   * Cadastro do cliente (dados, sócios, fazendas) pode ser alterado conforme a
+   * matriz de edição das solicitações do cliente:
+   * - ADMIN: sempre;
+   * - CONSULTOR dono: se ainda não há solicitação (cadastro em andamento) ou se há
+   *   alguma solicitação em etapa de edição do consultor;
+   * - GERENTE da filial: se há solicitação devolvida pelo crédito à sua filial.
+   */
+  async assertCadastroEditavel(clientId: string, user: AuthUser): Promise<void> {
+    if (user.role === Role.ADMIN) return;
+
+    const client = await this.prisma.client.findUnique({
+      where: { id: clientId },
+      select: {
+        consultantId: true,
+        creditRequests: {
+          select: { status: true, consultant: { select: { branchId: true } } },
+        },
+      },
+    });
+    if (!client) {
+      throw new NotFoundException('Cliente não encontrado.');
+    }
+
+    const solicitacoes = client.creditRequests;
+    const permitido =
+      user.role === Role.CONSULTOR
+        ? client.consultantId === user.id &&
+          (solicitacoes.length === 0 ||
+            solicitacoes.some((s) => ETAPAS_EDICAO_CONSULTOR.includes(s.status)))
+        : user.role === Role.GERENTE && !!user.branchId
+          ? solicitacoes.some(
+              (s) =>
+                ETAPAS_EDICAO_GERENTE.includes(s.status) &&
+                s.consultant.branchId === user.branchId,
+            )
+          : false;
+
+    if (!permitido) {
       throw new ForbiddenException(
-        'Você não tem permissão para alterar este cliente.',
+        'Você não tem permissão para alterar este cliente nesta etapa.',
       );
     }
   }

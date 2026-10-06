@@ -17,7 +17,7 @@ import { ProductionService } from './production.service.js';
 import { CreateProductionDto } from './dto/create-production.dto.js';
 import { UpdateProductionDto } from './dto/update-production.dto.js';
 
-@Roles(Role.CONSULTOR, Role.ADMIN)
+@Roles(Role.CONSULTOR, Role.GERENTE, Role.ADMIN)
 @Controller()
 export class ProductionController {
   constructor(private readonly productionService: ProductionService) {}

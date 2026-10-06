@@ -28,7 +28,7 @@ class ListPropertiesQueryDto extends PaginationQueryDto {
 export class PropertiesController {
   constructor(private readonly propertiesService: PropertiesService) {}
 
-  @Roles(Role.CONSULTOR, Role.ADMIN)
+  @Roles(Role.CONSULTOR, Role.GERENTE, Role.ADMIN)
   @Post()
   create(@Body() dto: CreatePropertyDto, @CurrentUser() user: AuthUser) {
     return this.propertiesService.create(dto, user);
@@ -55,7 +55,7 @@ export class PropertiesController {
     return this.propertiesService.findOneForUser(id, user);
   }
 
-  @Roles(Role.CONSULTOR, Role.ADMIN)
+  @Roles(Role.CONSULTOR, Role.GERENTE, Role.ADMIN)
   @Patch(':id')
   update(
     @Param('id', ParseUUIDPipe) id: string,

@@ -10,6 +10,10 @@ import { ReviewSection } from '../clients/ReviewSection'
 import { CreditRequestFieldsSection } from './CreditRequestFieldsSection'
 import { PropertiesSection } from '../properties/PropertiesSection'
 import { DocumentsSection } from '../documents/DocumentsSection'
+import { documentsApi } from '../documents/documentsApi'
+import { DOCUMENT_CHECKLIST } from '../../lib/document-checklist'
+import { DOCUMENT_TYPE_LABELS } from '../../lib/labels'
+import type { DocumentType } from '../../types/document'
 import { SignatureSection } from '../signatures/SignatureSection'
 import { clientsApi } from '../clients/clientsApi'
 import { partnersApi } from '../clients/partnersApi'
@@ -17,6 +21,7 @@ import { propertiesApi } from '../properties/propertiesApi'
 import { productionApi } from '../properties/productionApi'
 import { creditRequestsApi } from './creditRequestsApi'
 import { useAuth } from '../auth/AuthContext'
+import { ETAPAS_EDICAO_CONSULTOR, podeEditarCadastro } from '../../lib/workflow'
 import {
   toCreatePropertyInput,
   toUpdatePropertyInput,
@@ -37,8 +42,6 @@ import type { Property } from '../../types/property'
 import type { CreditRequest } from '../../types/credit-request'
 import type { Path } from 'react-hook-form'
 
-const EDITABLE_STATUSES = ['DRAFT', 'RETURNED_TO_CONSULTANT']
-
 interface WizardStep {
   label: string
   fields: Path<EditClientRequestFormValues>[]
@@ -55,6 +58,7 @@ const STEPS: WizardStep[] = [
 
 export function EditClientRequestPage() {
   const { id } = useParams<{ id: string }>()
+  const { user } = useAuth()
 
   const { data: creditRequest, isLoading: isLoadingCreditRequest } = useQuery({
     queryKey: ['credit-request', id],
@@ -78,7 +82,17 @@ export function EditClientRequestPage() {
   if (!id || !creditRequest || !client || !propertiesResult) {
     return <EmptyState title="Solicitação não encontrada" />
   }
-  if (!EDITABLE_STATUSES.includes(creditRequest.status)) {
+  const podeEditar =
+    !!user &&
+    podeEditarCadastro({
+      status: creditRequest.status,
+      role: user.role,
+      isOwner: creditRequest.consultantId === user.id,
+      mesmaFilial:
+        !!user.branchId &&
+        creditRequest.consultant?.branch?.id === user.branchId,
+    })
+  if (!podeEditar) {
     return (
       <EmptyState
         title="Esta solicitação não pode mais ser editada"
@@ -128,7 +142,20 @@ function EditWizard({
   // dono CONSULTOR ou ADMIN. Um GERENTE que abra esta URL (visível a ele por
   // estar na mesma filial) só vê Documentos/Assinatura em modo leitura.
   const canEditDocuments =
-    !!user && (user.role === 'ADMIN' || creditRequest.consultantId === user.id)
+    !!user &&
+    podeEditarCadastro({
+      status: creditRequest.status,
+      role: user.role,
+      isOwner: creditRequest.consultantId === user.id,
+      mesmaFilial:
+        !!user.branchId &&
+        creditRequest.consultant?.branch?.id === user.branchId,
+    })
+  // Assinatura SPC/Bacen é ação do consultor dono (ou admin), nas etapas de edição do consultor.
+  const canRequestAssinatura =
+    !!user &&
+    (user.role === 'ADMIN' || creditRequest.consultantId === user.id) &&
+    ETAPAS_EDICAO_CONSULTOR.includes(creditRequest.status)
 
   const methods = useForm<EditClientRequestFormValues>({
     resolver: zodResolver(editClientRequestSchema),
@@ -142,7 +169,35 @@ function EditWizard({
   const isFirstStep = step === 0
   const isLastStep = step === STEPS.length - 1
 
+  // Documentos obrigatórios para avançar além da etapa de documentos (índice 3).
+  // Contrato de arrendamento só é exigido com plantio em área arrendada (suposição).
+  const { data: documentosAnexados, isLoading: carregandoDocumentos } =
+    useQuery({
+      queryKey: ['documents', creditRequestId],
+      queryFn: () => documentsApi.list(creditRequestId),
+    })
+  // Todos os 9 documentos do checklist são obrigatórios para avançar.
+  const documentosObrigatorios: DocumentType[] = DOCUMENT_CHECKLIST
+  const documentosFaltantes = documentosObrigatorios.filter(
+    (tipo) =>
+      !(documentosAnexados ?? []).some((documento) => documento.type === tipo),
+  )
+  const bloqueiaDocumentos =
+    step === 3 && (carregandoDocumentos || documentosFaltantes.length > 0)
+  // Como nos outros passos: os faltantes só são destacados após tentar avançar.
+  const [tentouAvancarDocumentos, setTentouAvancarDocumentos] = useState(false)
+  const faltantesDestacados = tentouAvancarDocumentos ? documentosFaltantes : []
+
   async function handleNext() {
+    if (bloqueiaDocumentos) {
+      setTentouAvancarDocumentos(true)
+      showError(
+        carregandoDocumentos
+          ? 'Aguarde o carregamento dos documentos.'
+          : 'Anexe os documentos destacados antes de continuar.',
+      )
+      return
+    }
     const fieldsToValidate = STEPS[step].fields
     const valid =
       fieldsToValidate.length === 0
@@ -322,6 +377,8 @@ function EditWizard({
               <DocumentsSection
                 creditRequestId={creditRequestId}
                 canEdit={canEditDocuments}
+                pendencias={creditRequest.documentPendencies ?? []}
+                faltantes={faltantesDestacados}
               />
             </Card>
           )}
@@ -333,7 +390,7 @@ function EditWizard({
               </CardHeader>
               <SignatureSection
                 creditRequestId={creditRequestId}
-                canRequest={canEditDocuments}
+                canRequest={canRequestAssinatura}
               />
             </Card>
           )}
@@ -349,6 +406,15 @@ function EditWizard({
             </Card>
           )}
 
+          {step === 3 && faltantesDestacados.length > 0 && (
+            <p className="text-sm text-amber-800">
+              Para continuar, anexe os documentos obrigatórios:{' '}
+              {documentosFaltantes
+                .map((tipo) => DOCUMENT_TYPE_LABELS[tipo])
+                .join(', ')}
+              .
+            </p>
+          )}
           <div className="flex items-center justify-between">
             <Button
               type="button"

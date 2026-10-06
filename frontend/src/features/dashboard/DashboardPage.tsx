@@ -25,6 +25,19 @@ const QUEUE_STATUSES: Partial<Record<Role, CreditRequestStatus[]>> = {
   CREDITO: ['SUBMITTED_TO_CREDIT', 'CREDIT_REVIEW'],
 }
 
+function comparaOrdenacao(
+  ordenacao: 'data_recente' | 'data_antiga' | 'valor_maior' | 'valor_menor',
+) {
+  return (a: CreditRequest, b: CreditRequest) => {
+    if (ordenacao === 'valor_maior')
+      return Number(b.requestedCreditLimit) - Number(a.requestedCreditLimit)
+    if (ordenacao === 'valor_menor')
+      return Number(a.requestedCreditLimit) - Number(b.requestedCreditLimit)
+    const diff = Date.parse(a.createdAt) - Date.parse(b.createdAt)
+    return ordenacao === 'data_antiga' ? diff : -diff
+  }
+}
+
 export function DashboardPage() {
   const { user } = useAuth()
   const { data, isLoading } = useQuery({
@@ -44,6 +57,15 @@ export function DashboardPage() {
   const [filialFiltro, setFilialFiltro] = useState('')
   const [consultorFiltro, setConsultorFiltro] = useState('')
   const [statusFiltro, setStatusFiltro] = useState('')
+  // Filtros de período e valor (crédito). Strings vazias = sem limite.
+  const [dataInicio, setDataInicio] = useState('')
+  const [dataFim, setDataFim] = useState('')
+  const [valorMin, setValorMin] = useState('')
+  const [valorMax, setValorMax] = useState('')
+  // Ordenação da fila (crédito): data de criação ou valor solicitado.
+  const [ordenacao, setOrdenacao] = useState<
+    'data_recente' | 'data_antiga' | 'valor_maior' | 'valor_menor'
+  >('data_recente')
   const isGestor = user?.role === 'CREDITO' || user?.role === 'GERENTE'
 
   const filiaisDisponiveis = useMemo(() => {
@@ -81,18 +103,41 @@ export function DashboardPage() {
 
   const creditRequests = useMemo(
     () =>
-      filaBase.filter((cr) => {
-        const branch = cr.consultant?.branch?.name ?? null
-        if (filialFiltro && branch !== filialFiltro) return false
-        if (
-          consultorFiltro &&
-          (cr.consultant?.id ?? cr.consultantId) !== consultorFiltro
-        )
-          return false
-        if (statusFiltro && cr.status !== statusFiltro) return false
-        return true
-      }),
-    [filaBase, filialFiltro, consultorFiltro, statusFiltro],
+      [
+        ...filaBase.filter((cr) => {
+          const branch = cr.consultant?.branch?.name ?? null
+          if (filialFiltro && branch !== filialFiltro) return false
+          if (
+            consultorFiltro &&
+            (cr.consultant?.id ?? cr.consultantId) !== consultorFiltro
+          )
+            return false
+          if (statusFiltro && cr.status !== statusFiltro) return false
+          const criada = Date.parse(cr.createdAt)
+          if (
+            dataInicio &&
+            criada < new Date(`${dataInicio}T00:00:00`).getTime()
+          )
+            return false
+          if (dataFim && criada > new Date(`${dataFim}T23:59:59.999`).getTime())
+            return false
+          const valor = Number(cr.requestedCreditLimit)
+          if (valorMin !== '' && valor < Number(valorMin)) return false
+          if (valorMax !== '' && valor > Number(valorMax)) return false
+          return true
+        }),
+      ].sort(comparaOrdenacao(ordenacao)),
+    [
+      filaBase,
+      filialFiltro,
+      consultorFiltro,
+      statusFiltro,
+      dataInicio,
+      dataFim,
+      valorMin,
+      valorMax,
+      ordenacao,
+    ],
   )
 
   // Se o consultor escolhido não pertence mais à filial selecionada, limpa a escolha.
@@ -184,6 +229,69 @@ export function DashboardPage() {
               ))}
             </select>
           </label>
+          {user?.role === 'CREDITO' && (
+            <>
+              <label className="flex flex-col gap-1 text-sm">
+                <span className="text-slate-600">De</span>
+                <input
+                  type="date"
+                  value={dataInicio}
+                  onChange={(e) => setDataInicio(e.target.value)}
+                  className="rounded-md border border-slate-300 bg-white px-3 py-2"
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-sm">
+                <span className="text-slate-600">Até</span>
+                <input
+                  type="date"
+                  value={dataFim}
+                  onChange={(e) => setDataFim(e.target.value)}
+                  className="rounded-md border border-slate-300 bg-white px-3 py-2"
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-sm">
+                <span className="text-slate-600">Valor mínimo</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="1000"
+                  value={valorMin}
+                  onChange={(e) => setValorMin(e.target.value)}
+                  placeholder="R$"
+                  className="w-36 rounded-md border border-slate-300 bg-white px-3 py-2"
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-sm">
+                <span className="text-slate-600">Valor máximo</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="1000"
+                  value={valorMax}
+                  onChange={(e) => setValorMax(e.target.value)}
+                  placeholder="R$"
+                  className="w-36 rounded-md border border-slate-300 bg-white px-3 py-2"
+                />
+              </label>
+            </>
+          )}
+          {user?.role === 'CREDITO' && (
+            <label className="flex flex-col gap-1 text-sm">
+              <span className="text-slate-600">Ordenar por</span>
+              <select
+                value={ordenacao}
+                onChange={(e) =>
+                  setOrdenacao(e.target.value as typeof ordenacao)
+                }
+                className="rounded-md border border-slate-300 bg-white px-3 py-2"
+              >
+                <option value="data_recente">Data: mais recente</option>
+                <option value="data_antiga">Data: mais antiga</option>
+                <option value="valor_maior">Valor: maior</option>
+                <option value="valor_menor">Valor: menor</option>
+              </select>
+            </label>
+          )}
           <span className="text-sm text-slate-500">
             {creditRequests.length} de {filaBase.length} solicitações
           </span>

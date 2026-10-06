@@ -86,11 +86,14 @@ export class AuthService {
       select: { id: true, name: true, email: true, role: true, branch: { select: { name: true } } },
       orderBy: [{ name: 'asc' }],
     });
-    // Um usuário por perfil: o Admin e um consultor, gerente e crédito de teste.
-    const PERFIS_TESTE = ['ADMIN', 'CONSULTOR', 'GERENTE', 'CREDITO'];
-    const escolhidos = PERFIS_TESTE.map((perfil) => usuarios.find((u) => u.role === perfil)).filter(
-      (u): u is (typeof usuarios)[number] => Boolean(u),
-    );
+    // Admin, crédito e, da filial Formosa, um consultor e o gerente (contas de teste padrão).
+    const daFormosa = (u: (typeof usuarios)[number]) => u.branch?.name === 'Formosa';
+    const escolhidos = [
+      usuarios.find((u) => u.role === 'ADMIN'),
+      usuarios.find((u) => u.role === 'CREDITO'),
+      usuarios.find((u) => u.role === 'CONSULTOR' && daFormosa(u)),
+      usuarios.find((u) => u.role === 'GERENTE' && daFormosa(u)),
+    ].filter((u): u is (typeof usuarios)[number] => Boolean(u));
     return escolhidos.map((usuario) => ({
       id: usuario.id,
       name: usuario.name,

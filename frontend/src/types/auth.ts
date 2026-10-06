@@ -5,6 +5,8 @@ export interface AuthUser {
   name: string
   email: string
   role: Role
+  /** Filial do usuário (CONSULTOR/GERENTE). `null` para CREDITO/ADMIN. */
+  branchId?: string | null
 }
 
 export interface AuthTokens {

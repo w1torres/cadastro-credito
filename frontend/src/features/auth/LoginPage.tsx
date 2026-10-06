@@ -1,3 +1,4 @@
+import logo from '../../assets/logo.png'
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
@@ -76,6 +77,7 @@ export function LoginPage() {
   return (
     <main className="flex min-h-svh items-center justify-center bg-slate-50 p-4">
       <div className="w-full max-w-sm rounded-lg border border-slate-200 bg-white p-8 shadow-sm">
+        <img src={logo} alt="Tchê" className="mx-auto mb-4 h-28 w-auto" />
         <h1 className="text-xl font-semibold text-slate-900">
           Cadastro de Crédito Rural
         </h1>

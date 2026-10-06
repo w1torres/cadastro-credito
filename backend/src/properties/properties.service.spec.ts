@@ -28,7 +28,7 @@ describe('PropertiesService', () => {
   };
   let clientsService: {
     findOneForUser: AnyMock;
-    assertEditable: AnyMock;
+    assertCadastroEditavel: AnyMock;
     assertVisible: AnyMock;
   };
 
@@ -46,7 +46,7 @@ describe('PropertiesService', () => {
       findOneForUser: vi
         .fn()
         .mockResolvedValue({ id: 'client-1', consultantId: consultor.id }),
-      assertEditable: vi.fn(),
+      assertCadastroEditavel: vi.fn().mockResolvedValue(undefined),
       assertVisible: vi.fn(),
     };
 
@@ -82,7 +82,7 @@ describe('PropertiesService', () => {
       'client-1',
       consultor,
     );
-    expect(clientsService.assertEditable).toHaveBeenCalled();
+    expect(clientsService.assertCadastroEditavel).toHaveBeenCalled();
     const createCall = prisma.property.create.mock.calls[0][0] as {
       data: Record<string, unknown>;
     };

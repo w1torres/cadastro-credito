@@ -65,7 +65,7 @@ export class CreditRequestsController {
     return this.creditRequestsService.findOneForUser(id, user);
   }
 
-  @Roles(Role.CONSULTOR, Role.ADMIN)
+  @Roles(Role.CONSULTOR, Role.GERENTE, Role.ADMIN)
   @Patch(':id')
   update(
     @Param('id', ParseUUIDPipe) id: string,

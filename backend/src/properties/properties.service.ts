@@ -25,7 +25,7 @@ export class PropertiesService {
 
   async create(dto: CreatePropertyDto, user: AuthUser): Promise<Property> {
     const client = await this.clientsService.findOneForUser(dto.clientId, user);
-    this.clientsService.assertEditable(client, user);
+    await this.clientsService.assertCadastroEditavel(client.id, user);
 
     const { clientId, ...data } = dto;
     return this.prisma.property.create({ data: { ...data, clientId } });
@@ -70,7 +70,7 @@ export class PropertiesService {
     user: AuthUser,
   ): Promise<Property> {
     const property = await this.findWithClient(id, user);
-    this.clientsService.assertEditable(property.client, user);
+    await this.clientsService.assertCadastroEditavel(property.client.id, user);
     return this.prisma.property.update({
       where: { id: property.id },
       data: dto,

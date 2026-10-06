@@ -28,7 +28,7 @@ export class ProductionService {
       propertyId,
       user,
     );
-    this.clientsService.assertEditable(property.client, user);
+    await this.clientsService.assertCadastroEditavel(property.client.id, user);
 
     const existing = await this.prisma.propertyProduction.findUnique({
       where: {
@@ -84,7 +84,7 @@ export class ProductionService {
       production.propertyId,
       user,
     );
-    this.clientsService.assertEditable(property.client, user);
+    await this.clientsService.assertCadastroEditavel(property.client.id, user);
     return production;
   }
 }

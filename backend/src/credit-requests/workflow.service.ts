@@ -85,6 +85,17 @@ export class WorkflowService {
       }
     }
 
+    if (rule.requiresSemPendencias) {
+      const pendencias = await this.prisma.documentPendency.count({
+        where: { creditRequestId: id },
+      });
+      if (pendencias > 0) {
+        throw new ConflictException(
+          'Há documentos pendentes. Anexe os documentos indicados antes de enviar ao gerente.',
+        );
+      }
+    }
+
     if (rule.requiresFichaAprovadaSemPendencias) {
       const pendencias = await this.prisma.documentPendency.count({
         where: { creditRequestId: id },

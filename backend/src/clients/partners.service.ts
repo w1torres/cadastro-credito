@@ -23,7 +23,7 @@ export class PartnersService {
     user: AuthUser,
   ): Promise<Partner> {
     const client = await this.clientsService.findOneForUser(clientId, user);
-    this.clientsService.assertEditable(client, user);
+    await this.clientsService.assertCadastroEditavel(client.id, user);
 
     const existing = await this.prisma.partner.findUnique({
       where: { clientId_document: { clientId, document: dto.document } },
@@ -43,13 +43,13 @@ export class PartnersService {
     user: AuthUser,
   ): Promise<Partner> {
     const partner = await this.findOneWithClient(id);
-    this.clientsService.assertEditable(partner.client, user);
+    await this.clientsService.assertCadastroEditavel(partner.client.id, user);
     return this.prisma.partner.update({ where: { id }, data: dto });
   }
 
   async remove(id: string, user: AuthUser): Promise<void> {
     const partner = await this.findOneWithClient(id);
-    this.clientsService.assertEditable(partner.client, user);
+    await this.clientsService.assertCadastroEditavel(partner.client.id, user);
     await this.prisma.partner.delete({ where: { id } });
   }
 

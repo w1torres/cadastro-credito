@@ -14,7 +14,7 @@ import {
 import { clientsApi } from '../clients/clientsApi'
 import { propertiesApi } from '../properties/propertiesApi'
 import { useAuth } from '../auth/AuthContext'
-import { getAvailableActions } from '../../lib/workflow'
+import { getAvailableActions, podeEditarCadastro } from '../../lib/workflow'
 import type { WorkflowActionOption } from '../../lib/workflow'
 import { ApiError } from '../../lib/apiClient'
 import { useToast } from '../../components/ui/Toast'
@@ -45,7 +45,6 @@ import type {
   ReturnFormValues,
 } from '../../schemas/workflow.schema'
 
-const EDITABLE_STATUSES = ['DRAFT', 'RETURNED_TO_CONSULTANT']
 const TERMINAL_STATUSES = [
   'APPROVED',
   'REJECTED',
@@ -177,9 +176,13 @@ export function CreditRequestDetailPage() {
 
   const isOwner = creditRequest.consultantId === user.id
   const actions = getAvailableActions(creditRequest.status, user.role, isOwner)
-  const canEdit =
-    (user.role === 'ADMIN' || isOwner) &&
-    EDITABLE_STATUSES.includes(creditRequest.status)
+  const canEdit = podeEditarCadastro({
+    status: creditRequest.status,
+    role: user.role,
+    isOwner,
+    mesmaFilial:
+      !!user.branchId && creditRequest.consultant?.branch?.id === user.branchId,
+  })
 
   // Uma vez enviada ao gerente, o CONSULTOR deixa de ver o valor solicitado —
   // mesmo que a solicitação volte para ele corrigir (visão de leitura só
@@ -200,6 +203,12 @@ export function CreditRequestDetailPage() {
       REVIEW_STATUSES_CREDITO.includes(creditRequest.status))
   // Envio do gerente para o crédito fica bloqueado com pendência ou ficha não aprovada.
   const pendenciasAbertas = creditRequest.documentPendencies?.length ?? 0
+  // Consultor não envia (ao gerente) enquanto houver documento pendente.
+  const bloqueioEnvioConsultor =
+    user.role === 'CONSULTOR' &&
+    (creditRequest.status === 'DRAFT' ||
+      creditRequest.status === 'RETURNED_TO_CONSULTANT') &&
+    pendenciasAbertas > 0
   const bloqueioEnvioCredito =
     user.role === 'GERENTE' &&
     creditRequest.status === 'MANAGER_REVIEW' &&
@@ -333,13 +342,23 @@ export function CreditRequestDetailPage() {
               type="button"
               size="sm"
               variant={option.variant}
-              disabled={option.action === 'SUBMIT' && bloqueioEnvioCredito}
+              disabled={
+                option.action === 'SUBMIT' &&
+                (bloqueioEnvioCredito || bloqueioEnvioConsultor)
+              }
               onClick={() => handleAction(option)}
             >
               {option.label}
             </Button>
           ))}
         </div>
+        {bloqueioEnvioConsultor && (
+          <p className="mt-2 text-xs text-amber-700">
+            Anexe os documentos pendentes indicados abaixo para poder enviar a
+            solicitação ao gerente.
+          </p>
+        )}
+
         {bloqueioEnvioCredito && (
           <p className="mt-2 text-xs text-amber-700">
             Para enviar ao crédito, resolva os documentos pendentes e aprove a

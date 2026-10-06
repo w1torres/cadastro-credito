@@ -17,7 +17,7 @@ import { PartnersService } from './partners.service.js';
 import { CreatePartnerDto } from './dto/create-partner.dto.js';
 import { UpdatePartnerDto } from './dto/update-partner.dto.js';
 
-@Roles(Role.CONSULTOR, Role.ADMIN)
+@Roles(Role.CONSULTOR, Role.GERENTE, Role.ADMIN)
 @Controller()
 export class PartnersController {
   constructor(private readonly partnersService: PartnersService) {}

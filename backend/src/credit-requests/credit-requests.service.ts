@@ -14,6 +14,7 @@ import {
   Role,
 } from '@prisma/client';
 import { DOCUMENT_CHECKLIST_TYPES } from './constants.js';
+import { podeEditarCadastro } from './workflow.types.js';
 import { SetDocumentPendenciesDto } from './dto/set-document-pendencies.dto.js';
 import { SetFichaCadastralDto } from './dto/set-ficha-cadastral.dto.js';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -59,7 +60,9 @@ export class CreditRequestsService {
     user: AuthUser,
   ): Promise<CreditRequest> {
     const client = await this.clientsService.findOneForUser(dto.clientId, user);
-    this.clientsService.assertEditable(client, user);
+    if (user.role !== Role.ADMIN && client.consultantId !== user.id) {
+      throw new ForbiddenException('Você não tem permissão para criar solicitações para este cliente.');
+    }
 
     const { clientId, ...data } = dto;
     return this.prisma.$transaction(async (tx) => {
@@ -136,11 +139,6 @@ export class CreditRequestsService {
   ): Promise<CreditRequest> {
     const creditRequest = await this.findOwned(id);
     this.assertEditable(creditRequest, user);
-    if (!EDITABLE_STATUSES.includes(creditRequest.status)) {
-      throw new ConflictException(
-        'Só é possível editar a solicitação enquanto ela está em rascunho ou devolvida para correção.',
-      );
-    }
     return this.prisma.creditRequest.update({ where: { id }, data: dto });
   }
 
@@ -321,22 +319,33 @@ export class CreditRequestsService {
   }
 
   /**
-   * Pública (não `private`) porque DocumentsService/SignaturesService (Fases
-   * 5/6) reaproveitam exatamente esta regra em vez de duplicá-la — "dono
-   * CONSULTOR ou ADMIN" é a mesma checagem para editar a solicitação, subir
-   * documento ou disparar assinatura.
+   * Pública (não `private`) porque DocumentsService/SignaturesService reaproveitam
+   * a mesma regra. A matriz de edição (quem, em qual etapa) está em
+   * `podeEditarCadastro` (workflow.types.ts) — fonte única.
    */
   assertEditable(
-    creditRequest: Pick<CreditRequest, 'consultantId'>,
+    creditRequest: Pick<CreditRequest, 'consultantId' | 'status'> & {
+      consultant?: { branchId: string | null };
+    },
     user: AuthUser,
   ): void {
-    const canEdit =
+    const permitido = podeEditarCadastro({
+      status: creditRequest.status,
+      role: user.role,
+      isOwner: creditRequest.consultantId === user.id,
+      mesmaFilial:
+        !!user.branchId && creditRequest.consultant?.branchId === user.branchId,
+    });
+    if (permitido) return;
+    const temAcesso =
       user.role === Role.ADMIN ||
-      (user.role === Role.CONSULTOR && creditRequest.consultantId === user.id);
-    if (!canEdit) {
-      throw new ForbiddenException(
-        'Você não tem permissão para alterar esta solicitação.',
+      (user.role === Role.CONSULTOR && creditRequest.consultantId === user.id) ||
+      (user.role === Role.GERENTE && !!user.branchId && creditRequest.consultant?.branchId === user.branchId);
+    if (temAcesso) {
+      throw new ConflictException(
+        'A solicitação não pode ser alterada nesta etapa. Verifique o status atual.',
       );
     }
+    throw new ForbiddenException('Você não tem permissão para alterar esta solicitação.');
   }
 }

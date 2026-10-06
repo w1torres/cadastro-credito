@@ -178,3 +178,35 @@ export function getAvailableActions(
     requiresObservation: requiresObservation ?? true,
   }))
 }
+
+/**
+ * Espelho de `ETAPAS_EDICAO_*` e `podeEditarCadastro` do backend
+ * (backend/src/credit-requests/workflow.types.ts) — manter as duas em sincronia.
+ */
+export const ETAPAS_EDICAO_CONSULTOR: CreditRequestStatus[] = [
+  'DRAFT',
+  'RETURNED_TO_CONSULTANT',
+]
+export const ETAPAS_EDICAO_GERENTE: CreditRequestStatus[] = [
+  'RETURNED_TO_MANAGER',
+]
+
+export function podeEditarCadastro(params: {
+  status: CreditRequestStatus
+  role: Role
+  isOwner: boolean
+  mesmaFilial: boolean
+}): boolean {
+  const { status, role, isOwner, mesmaFilial } = params
+  if (role === 'ADMIN') {
+    return (
+      ETAPAS_EDICAO_CONSULTOR.includes(status) ||
+      ETAPAS_EDICAO_GERENTE.includes(status)
+    )
+  }
+  if (role === 'CONSULTOR')
+    return isOwner && ETAPAS_EDICAO_CONSULTOR.includes(status)
+  if (role === 'GERENTE')
+    return mesmaFilial && ETAPAS_EDICAO_GERENTE.includes(status)
+  return false
+}

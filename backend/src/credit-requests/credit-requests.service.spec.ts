@@ -31,7 +31,7 @@ describe('CreditRequestsService', () => {
   };
   let clientsService: {
     findOneForUser: AnyMock;
-    assertEditable: AnyMock;
+    assertCadastroEditavel: AnyMock;
   };
 
   beforeEach(async () => {
@@ -54,7 +54,7 @@ describe('CreditRequestsService', () => {
       findOneForUser: vi
         .fn()
         .mockResolvedValue({ id: 'client-1', consultantId: consultor.id }),
-      assertEditable: vi.fn(),
+      assertCadastroEditavel: vi.fn().mockResolvedValue(undefined),
     };
 
     const moduleRef = await Test.createTestingModule({

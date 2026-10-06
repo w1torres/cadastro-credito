@@ -60,6 +60,19 @@ export class DocumentsService {
         entityId: document.id,
         metadata: { creditRequestId, type: dto.type },
       });
+      // Anexar o documento pendente resolve a pendência daquele tipo.
+      const resolvidas = await tx.documentPendency.deleteMany({
+        where: { creditRequestId, type: dto.type },
+      });
+      if (resolvidas.count > 0) {
+        await recordAudit(tx, {
+          userId: user.id,
+          action: 'DOCUMENT_PENDENCY_RESOLVED',
+          entity: 'CreditRequest',
+          entityId: creditRequestId,
+          metadata: { type: dto.type },
+        });
+      }
       return document;
     });
   }
